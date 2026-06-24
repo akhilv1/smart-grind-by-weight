@@ -1,10 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include "../screens/nyan_cat_screensaver.h"
 
 class UIManager;
 
-// Implements automatic screen dimming based on touch/weight activity
+// Implements automatic screen dimming and Nyan Cat screensaver
 
 class ScreenTimeoutController {
 public:
@@ -16,4 +17,6 @@ public:
 private:
     UIManager* ui_manager_;
     bool screen_dimmed_;
+    NyanCatScreensaver screensaver_;
+    bool screensaver_created_ = false;
 };

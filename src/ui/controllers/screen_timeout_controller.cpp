@@ -30,6 +30,7 @@ void ScreenTimeoutController::update() {
         return;
     }
 
+    // Never dim/screensaver during active grinding
     if (ui_manager_->state_machine && ui_manager_->state_machine->is_state(UIState::GRINDING)) {
         if (screen_dimmed_) {
             float normal = USER_SCREEN_BRIGHTNESS_NORMAL;
@@ -38,6 +39,7 @@ void ScreenTimeoutController::update() {
             }
             display->set_brightness(normal);
             screen_dimmed_ = false;
+            screensaver_.hide();
         }
         return;
     }
@@ -51,18 +53,29 @@ void ScreenTimeoutController::update() {
     bool should_dim = (ms_since_touch >= USER_SCREEN_AUTO_DIM_TIMEOUT_MS) && !recent_weight_activity;
 
     if (should_dim && !screen_dimmed_) {
+        // Dim screen and activate screensaver
         float dimmed = USER_SCREEN_BRIGHTNESS_DIMMED;
         if (ui_manager_->menu_controller_) {
             dimmed = ui_manager_->menu_controller_->get_screensaver_brightness();
         }
         display->set_brightness(dimmed);
         screen_dimmed_ = true;
+
+        // Create screensaver lazily on first use
+        if (!screensaver_created_) {
+            screensaver_.create(lv_scr_act());
+            screensaver_created_ = true;
+        }
+        screensaver_.show();
+
     } else if (!should_dim && screen_dimmed_) {
+        // Restore brightness and hide screensaver
         float normal = USER_SCREEN_BRIGHTNESS_NORMAL;
         if (ui_manager_->menu_controller_) {
             normal = ui_manager_->menu_controller_->get_normal_brightness();
         }
         display->set_brightness(normal);
         screen_dimmed_ = false;
+        screensaver_.hide();
     }
 }
