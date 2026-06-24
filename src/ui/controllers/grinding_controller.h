@@ -1,5 +1,6 @@
 #pragma once
 #include <lvgl.h>
+#include "../../controllers/grind_mode.h"
 
 class UIManager;
 enum class UIState;
@@ -18,6 +19,8 @@ public:
     void update(UIState current_state);
 
     void handle_grind_button();
+    void handle_manual_press();
+    void handle_manual_release();
     void handle_pulse_button();
     void handle_layout_toggle();
     void handle_purge_confirm_continue();
@@ -31,6 +34,8 @@ public:
     static void dispatch_event(const GrindEventData& event_data);
 
 private:
+    void start_grind_from_ready(GrindMode mode);
+
     void enter_ready_state();
     void enter_edit_state();
     void enter_grinding_state();

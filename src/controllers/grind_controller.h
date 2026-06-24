@@ -8,6 +8,9 @@
 #include "grind_strategy.h"
 #include "weight_grind_strategy.h"
 #include "time_grind_strategy.h"
+#include "calibrated_time_grind_strategy.h"
+#include "manual_grind_strategy.h"
+#include "single_auto_grind_strategy.h"
 #include "preferences_idf.h"
 #include "littlefs_idf.h"
 #include <freertos/FreeRTOS.h>
@@ -64,6 +67,7 @@ enum class GrindPhase {
     PULSE_SETTLING,     // Waiting for weight to settle after pulse
     FINAL_SETTLING,     // Waiting for weight to settle
     TIME_GRINDING,      // Time-based grinding phase
+    MANUAL_GRINDING,    // Manual hold-to-grind phase
     TIME_ADDITIONAL_PULSE, // Additional pulse in time mode after completion
     COMPLETED,          // Grind completed (success, overshoot, or max pulses)
     TIMEOUT,            // Grind timed out
@@ -86,6 +90,9 @@ class GrindController {
 private:
     friend class WeightGrindStrategy;
     friend class TimeGrindStrategy;
+    friend class CalibratedTimeGrindStrategy;
+    friend class ManualGrindStrategy;
+    friend class SingleAutoGrindStrategy;
 
     WeightSensor* weight_sensor;
     Grinder* grinder;
@@ -165,6 +172,12 @@ private:
     IGrindStrategy* active_strategy = nullptr;
     WeightGrindStrategy weight_strategy;
     TimeGrindStrategy time_strategy;
+    CalibratedTimeGrindStrategy calibrated_time_strategy;
+    ManualGrindStrategy manual_strategy;
+    SingleAutoGrindStrategy single_auto_strategy;
+
+    // Manual mode: true while the user is holding the grind button.
+    volatile bool manual_button_held_ = false;
 
     // Mechanical instability tracking
     int mechanical_anomaly_count_ = 0;
@@ -203,6 +216,10 @@ public:
     void continue_from_purge(); // Called by UI to continue from PURGE_CONFIRM to PREDICTIVE
     void update(); // Core 0 main control method - runs at fixed RTOS interval
     
+    // Manual mode: UI reports grind-button hold state here.
+    void set_manual_button_held(bool held) { manual_button_held_ = held; }
+    bool is_manual_button_held() const { return manual_button_held_; }
+
     // Time mode pulse functionality
     void start_additional_pulse(); // Start an additional 100ms pulse in time mode
     bool can_pulse() const; // Check if additional pulses are allowed

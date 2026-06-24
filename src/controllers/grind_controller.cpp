@@ -191,6 +191,12 @@ void GrindController::start_grind(float target, uint32_t time_ms, GrindMode grin
         active_strategy = static_cast<IGrindStrategy*>(&weight_strategy);
     } else if (mode == GrindMode::TIME) {
         active_strategy = static_cast<IGrindStrategy*>(&time_strategy);
+    } else if (mode == GrindMode::CALIBRATED_TIME) {
+        active_strategy = static_cast<IGrindStrategy*>(&calibrated_time_strategy);
+    } else if (mode == GrindMode::MANUAL) {
+        active_strategy = static_cast<IGrindStrategy*>(&manual_strategy);
+    } else if (mode == GrindMode::SINGLE_AUTO) {
+        active_strategy = static_cast<IGrindStrategy*>(&single_auto_strategy);
     } else {
         active_strategy = nullptr;
     }
@@ -221,6 +227,7 @@ void GrindController::return_to_idle() {
         LOG_BLE("[%lums CONTROLLER] UI acknowledged completion/timeout, returning to IDLE.\n", millis());
         time_grind_start_ms = 0;
         target_time_ms = 0;
+        manual_button_held_ = false;
         grinder_purge_mode_for_session = static_cast<GrinderPurgeMode>(GRIND_PURGE_MODE_DEFAULT);
         grinder_purge_amount_g_for_session = GRIND_PURGE_AMOUNT_DEFAULT_G;
         last_error_message[0] = '\0';
@@ -350,14 +357,24 @@ void GrindController::update() {
             if (!weight_sensor->is_tare_in_progress()) {
                 // Double confirm weights are settled
                 if (weight_sensor->is_settled()) {
-                    if (!grinder->is_grinding()) {
-                        grinder->start();  // Ensure motor is running
-                    }
                     time_grind_start_ms = loop_data.now;
-                    if (mode == GrindMode::TIME) {
+                    if (mode == GrindMode::TIME || mode == GrindMode::CALIBRATED_TIME ||
+                        mode == GrindMode::SINGLE_AUTO) {
+                        // Continuous-grind modes: start the motor and let the
+                        // strategy decide when to stop.
+                        if (!grinder->is_grinding()) {
+                            grinder->start();
+                        }
                         switch_phase(GrindPhase::TIME_GRINDING, loop_data);
+                    } else if (mode == GrindMode::MANUAL) {
+                        // Manual: motor stays off until the user holds the button
+                        // (the strategy starts/stops it based on the held flag).
+                        switch_phase(GrindPhase::MANUAL_GRINDING, loop_data);
                     } else {
-                        // Always run chute operation for weight mode
+                        // Weight mode: ensure motor is running, then run chute operation.
+                        if (!grinder->is_grinding()) {
+                            grinder->start();
+                        }
                         switch_phase(GrindPhase::PRIME, loop_data);
                     }
                 }
@@ -433,7 +450,14 @@ void GrindController::update() {
         }
 
         case GrindPhase::TIME_GRINDING:
-            if (mode == GrindMode::TIME && active_strategy) {
+            if ((mode == GrindMode::TIME || mode == GrindMode::CALIBRATED_TIME ||
+                 mode == GrindMode::SINGLE_AUTO) && active_strategy) {
+                active_strategy->update(session_descriptor, strategy_context, loop_data);
+            }
+            break;
+
+        case GrindPhase::MANUAL_GRINDING:
+            if (mode == GrindMode::MANUAL && active_strategy) {
                 active_strategy->update(session_descriptor, strategy_context, loop_data);
             }
             break;
@@ -712,6 +736,7 @@ void GrindController::switch_phase(GrindPhase new_phase, const GrindLoopData& lo
             case GrindPhase::PRIME:
             case GrindPhase::PREDICTIVE:
             case GrindPhase::TIME_GRINDING:
+            case GrindPhase::MANUAL_GRINDING:
                 event_in_progress.event_flags |= GRIND_EVENT_FLAG_MOTOR_ACTIVE;
                 break;
             case GrindPhase::PULSE_EXECUTE:
@@ -766,9 +791,11 @@ void GrindController::switch_phase(GrindPhase new_phase, const GrindLoopData& lo
 
         event_data.event = UIGrindEvent::COMPLETED;
         // Use final_weight if available (from final_measurement), otherwise use high latency weight
-        event_data.final_weight = (final_weight > 0) ? final_weight : 
+        event_data.final_weight = (final_weight > 0) ? final_weight :
                                  (weight_sensor ? weight_sensor->get_weight_high_latency() : 0.0f);
-        
+        // Motor on time for calibration — for time-based modes, the motor ran for target_time_ms
+        event_data.total_motor_on_time_ms = target_time_ms;
+
         // For time mode, also indicate pulse availability
         if (mode == GrindMode::TIME) {
             event_data.can_pulse = true;
@@ -845,6 +872,7 @@ const char* GrindController::get_phase_name(GrindPhase p) const {
         case GrindPhase::PULSE_SETTLING: return "PULSE_SETTLING";
         case GrindPhase::FINAL_SETTLING: return "FINAL_SETTLING";
         case GrindPhase::TIME_GRINDING: return "TIME";
+        case GrindPhase::MANUAL_GRINDING: return "MANUAL";
         case GrindPhase::TIME_ADDITIONAL_PULSE: return "PULSE";
         case GrindPhase::COMPLETED: return "COMPLETED";
         case GrindPhase::TIMEOUT: return "TIMEOUT";
@@ -1074,8 +1102,9 @@ void GrindController::start_additional_pulse() {
 }
 
 bool GrindController::can_pulse() const {
-    // Only allow pulses in time mode when grind is completed and not in pulse phase
-    return mode == GrindMode::TIME &&
+    // Allow manual pulses in time and hybrid (calibrated-time) modes once the
+    // grind has completed, so the user can top up toward the target weight.
+    return (mode == GrindMode::TIME || mode == GrindMode::CALIBRATED_TIME) &&
            phase == GrindPhase::COMPLETED;
 }
 

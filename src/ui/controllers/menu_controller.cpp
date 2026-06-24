@@ -47,6 +47,7 @@ void MenuUIController::register_events() {
 
     EventBridgeLVGL::register_handler(ET::GRIND_MODE_SWIPE_TOGGLE, [this](lv_event_t*) { handle_grind_mode_swipe_toggle(); });
     EventBridgeLVGL::register_handler(ET::GRIND_MODE_RADIO_BUTTON, [this](lv_event_t*) { handle_grind_mode_radio_button(); });
+    EventBridgeLVGL::register_handler(ET::FEED_MODE_RADIO_BUTTON, [this](lv_event_t*) { handle_feed_mode_radio_button(); });
     EventBridgeLVGL::register_handler(ET::AUTO_START_TOGGLE, [this](lv_event_t*) { handle_auto_start_toggle(); });
     EventBridgeLVGL::register_handler(ET::AUTO_RETURN_TOGGLE, [this](lv_event_t*) { handle_auto_return_toggle(); });
     EventBridgeLVGL::register_handler(ET::GRINDER_PURGE_MODE_RADIO_BUTTON, [this](lv_event_t*) { handle_grinder_purge_mode_radio_button(); });
@@ -327,7 +328,23 @@ void MenuUIController::handle_grind_mode_radio_button() {
     int selected_index = radio_button_group_get_selection(radio_group);
     if (selected_index < 0) return;
 
-    GrindMode new_mode = (selected_index == 0) ? GrindMode::WEIGHT : GrindMode::TIME;
+    // Map the selected index to a GrindMode using the current feed's mode list
+    int feed_mode_int = static_cast<int>(FeedMode::HOPPER);
+    auto* hardware = ui_manager_->get_hardware_manager();
+    Preferences* prefs = hardware ? hardware->get_preferences() : nullptr;
+    if (prefs) {
+        feed_mode_int = prefs->getInt("feed_mode", static_cast<int>(FeedMode::HOPPER));
+    }
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
+
+    GrindMode modes[5];
+    int count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), modes);
+    if (selected_index >= count) return;
+    GrindMode new_mode = modes[selected_index];
+
+    if (prefs) {
+        prefs->putInt("grind_mode", static_cast<int>(new_mode));
+    }
     ui_manager_->profile_controller->set_grind_mode(new_mode);
     ui_manager_->current_mode = new_mode;
     if (ui_manager_->ready_controller_) {
@@ -340,7 +357,66 @@ void MenuUIController::handle_grind_mode_radio_button() {
         }
     }
 
-    LOG_DEBUG_PRINTLN(selected_index == 0 ? "Grind mode set to WEIGHT via radio button" : "Grind mode set to TIME via radio button");
+    LOG_DEBUG_PRINTF("Grind mode set to %s via radio button\n", get_grind_mode_traits(new_mode).name);
+}
+
+void MenuUIController::handle_feed_mode_radio_button() {
+    if (!ui_manager_ || !ui_manager_->profile_controller) return;
+
+    lv_obj_t* radio_group = ui_manager_->menu_screen.get_feed_mode_radio_group();
+    if (!radio_group) return;
+
+    int feed_index = radio_button_group_get_selection(radio_group);
+    if (feed_index < 0 || feed_index > 1) return;
+    FeedMode feed = static_cast<FeedMode>(feed_index);
+
+    // Persist the feed mode in main grinder preferences
+    auto* hardware = ui_manager_->get_hardware_manager();
+    Preferences* prefs = hardware ? hardware->get_preferences() : nullptr;
+    if (prefs) {
+        prefs->putInt("feed_mode", feed_index);
+    }
+
+    // Compute the new grind mode for this feed
+    GrindMode modes[5];
+    int count = grind_modes_for_feed(feed, modes);
+    GrindMode new_mode;
+    if (feed == FeedMode::SINGLE) {
+        new_mode = GrindMode::SINGLE_AUTO;
+    } else {
+        // Keep the current mode if it's valid for the Hopper feed, else default to Weight
+        new_mode = GrindMode::WEIGHT;
+        for (int i = 0; i < count; ++i) {
+            if (modes[i] == ui_manager_->current_mode) {
+                new_mode = ui_manager_->current_mode;
+                break;
+            }
+        }
+    }
+
+    if (prefs) {
+        prefs->putInt("grind_mode", static_cast<int>(new_mode));
+    }
+    ui_manager_->profile_controller->set_grind_mode(new_mode);
+    ui_manager_->current_mode = new_mode;
+
+    // Find the index of the new mode within the feed's list and rebuild the radio
+    int new_index = 0;
+    for (int i = 0; i < count; ++i) {
+        if (modes[i] == new_mode) {
+            new_index = i;
+            break;
+        }
+    }
+    ui_manager_->menu_screen.build_grind_mode_radio(feed_index, new_index);
+
+    if (ui_manager_->ready_controller_) {
+        ui_manager_->ready_controller_->refresh_profiles();
+    }
+
+    LOG_DEBUG_PRINTF("Feed mode set to %s; grind mode -> %s\n",
+                     feed == FeedMode::SINGLE ? "Single" : "Hopper",
+                     get_grind_mode_traits(new_mode).name);
 }
 
 void MenuUIController::handle_auto_start_toggle() {

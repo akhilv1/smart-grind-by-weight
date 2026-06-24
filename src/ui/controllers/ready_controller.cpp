@@ -58,7 +58,7 @@ void ReadyUIController::handle_profile_long_press() {
     ui_manager_->switch_to_state(UIState::EDIT);
 }
 
-void ReadyUIController::toggle_mode() {
+void ReadyUIController::toggle_mode(bool forward) {
     if (!ui_manager_ || ui_manager_->current_tab >= 3) {
         return;
     }
@@ -72,9 +72,27 @@ void ReadyUIController::toggle_mode() {
         return;
     }
 
-    ui_manager_->current_mode = (ui_manager_->current_mode == GrindMode::WEIGHT)
-                                    ? GrindMode::TIME
-                                    : GrindMode::WEIGHT;
+    // Cycle within the current feed mode's list of grind modes (wrapping)
+    int feed_mode_int = static_cast<int>(FeedMode::HOPPER);
+    if (ui_manager_->hardware_manager) {
+        Preferences* main_prefs = ui_manager_->hardware_manager->get_preferences();
+        if (main_prefs) {
+            feed_mode_int = main_prefs->getInt("feed_mode", static_cast<int>(FeedMode::HOPPER));
+        }
+    }
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
+
+    GrindMode modes[5];
+    int count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), modes);
+    int current_index = 0;
+    for (int i = 0; i < count; ++i) {
+        if (modes[i] == ui_manager_->current_mode) {
+            current_index = i;
+            break;
+        }
+    }
+    int step = forward ? 1 : (count - 1);  // -1 mod count = go back one (carousel)
+    ui_manager_->current_mode = modes[(current_index + step) % count];
 
     if (ui_manager_->profile_controller) {
         ui_manager_->profile_controller->set_grind_mode(ui_manager_->current_mode);
@@ -125,7 +143,8 @@ void ReadyUIController::register_events() {
         }
         UIManager* ui = static_cast<UIManager*>(lv_event_get_user_data(e));
         if (ui && ui->state_machine->is_state(UIState::READY) && ui->ready_controller_) {
-            ui->ready_controller_->toggle_mode();
+            // Carousel: swipe up advances to the next mode, swipe down goes back.
+            ui->ready_controller_->toggle_mode(dir == LV_DIR_TOP);
         }
     };
 

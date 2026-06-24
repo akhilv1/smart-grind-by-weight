@@ -7,6 +7,7 @@
 #include "../../config/constants.h"
 #include "../../controllers/grind_events.h"
 #include "../../controllers/grind_mode.h"
+#include "../../controllers/grind_mode_traits.h"
 #include "../../logging/grind_logging.h"
 #include "../ui_manager.h"
 
@@ -66,6 +67,27 @@ void GrindingUIController::register_events() {
                 controller->handle_grind_button();
             }
         }, LV_EVENT_CLICKED, this);
+
+        // Manual (hold-to-grind) mode uses press/release on the same button
+        lv_obj_add_event_cb(grind_button_, [](lv_event_t* e) {
+            if (lv_event_get_code(e) != LV_EVENT_PRESSED) {
+                return;
+            }
+            auto* controller = static_cast<GrindingUIController*>(lv_event_get_user_data(e));
+            if (controller) {
+                controller->handle_manual_press();
+            }
+        }, LV_EVENT_PRESSED, this);
+
+        lv_obj_add_event_cb(grind_button_, [](lv_event_t* e) {
+            if (lv_event_get_code(e) != LV_EVENT_RELEASED) {
+                return;
+            }
+            auto* controller = static_cast<GrindingUIController*>(lv_event_get_user_data(e));
+            if (controller) {
+                controller->handle_manual_release();
+            }
+        }, LV_EVENT_RELEASED, this);
     }
 
     if (pulse_button_) {
@@ -177,8 +199,86 @@ void GrindingUIController::update(UIState current_state) {
     }
 }
 
+void GrindingUIController::start_grind_from_ready(GrindMode mode) {
+    if (!ui_manager_ || !ui_manager_->profile_controller || !ui_manager_->grind_controller) {
+        return;
+    }
+
+    ui_manager_->grind_controller->set_grind_profile_id(ui_manager_->profile_controller->get_current_profile());
+
+    LOG_BLE("[%lums GRIND_START] About to call start_grind()\n", millis());
+    error_message_[0] = '\0';
+    error_grind_weight_ = 0.0f;
+    error_grind_progress_ = 0;
+
+    float target_weight = ui_manager_->profile_controller->get_current_weight();
+
+    if (mode == GrindMode::MANUAL || mode == GrindMode::SINGLE_AUTO) {
+        // Hold-to-grind and single-dose auto-stop ignore the target time
+        ui_manager_->grind_controller->start_grind(target_weight, 0, mode);
+        LOG_BLE("[%lums GRIND_START] start_grind() returned (mode=%s)\n",
+                millis(), get_grind_mode_traits(mode).name);
+        return;
+    }
+
+    float target_time_seconds = ui_manager_->profile_controller->get_current_time();
+
+    // For CALIBRATED_TIME: compute time from calibrated flow rate instead of stored time
+    if (mode == GrindMode::CALIBRATED_TIME) {
+        int profile_idx = ui_manager_->profile_controller->get_current_profile();
+        target_time_seconds = ui_manager_->profile_controller->get_calibrated_time(profile_idx);
+        LOG_BLE("[GRIND_START] Calibrated time: %.1fs (flow: %.2f g/s, count: %d)\n",
+                target_time_seconds,
+                ui_manager_->profile_controller->get_calibrated_flow_rate(profile_idx),
+                ui_manager_->profile_controller->get_calibration_count(profile_idx));
+    }
+
+    uint32_t target_time_ms = static_cast<uint32_t>((target_time_seconds * 1000.0f) + 0.5f);
+    ui_manager_->grind_controller->start_grind(target_weight, target_time_ms, mode);
+    LOG_BLE("[%lums GRIND_START] start_grind() returned\n", millis());
+}
+
+void GrindingUIController::handle_manual_press() {
+    if (!ui_manager_ || !ui_manager_->state_machine || !ui_manager_->grind_controller) {
+        return;
+    }
+    if (ui_manager_->current_mode != GrindMode::MANUAL) {
+        return;
+    }
+
+    ui_manager_->grind_controller->set_manual_button_held(true);
+
+    // Start a manual grind only from the READY state on a grindable profile
+    if (ui_manager_->state_machine->is_state(UIState::READY) && ui_manager_->current_tab != 3) {
+        start_grind_from_ready(GrindMode::MANUAL);
+    }
+}
+
+void GrindingUIController::handle_manual_release() {
+    if (!ui_manager_ || !ui_manager_->grind_controller) {
+        return;
+    }
+    if (ui_manager_->current_mode != GrindMode::MANUAL) {
+        return;
+    }
+    ui_manager_->grind_controller->set_manual_button_held(false);
+}
+
 void GrindingUIController::handle_grind_button() {
     if (!ui_manager_ || !ui_manager_->state_machine) {
+        return;
+    }
+
+    // Manual mode starts/stops via PRESSED/RELEASED, not a tap. The CLICKED that
+    // fires after a press-release must not start (READY) or abort (GRINDING) the
+    // grind; only complete/timeout acknowledgement falls through to later branches.
+    if (ui_manager_->current_mode == GrindMode::MANUAL &&
+        (ui_manager_->state_machine->is_state(UIState::READY) ||
+         ui_manager_->state_machine->is_state(UIState::GRINDING))) {
+        if (ui_manager_->state_machine->is_state(UIState::READY) &&
+            ui_manager_->current_tab == 3) {
+            ui_manager_->switch_to_state(UIState::MENU);
+        }
         return;
     }
 
@@ -200,22 +300,7 @@ void GrindingUIController::handle_grind_button() {
             return;
         }
 
-        if (ui_manager_->grind_controller && ui_manager_->profile_controller) {
-            ui_manager_->grind_controller->set_grind_profile_id(ui_manager_->profile_controller->get_current_profile());
-        }
-
-        LOG_BLE("[%lums GRIND_START] About to call start_grind()\n", millis());
-        error_message_[0] = '\0';
-        error_grind_weight_ = 0.0f;
-        error_grind_progress_ = 0;
-
-        if (ui_manager_->profile_controller && ui_manager_->grind_controller) {
-            float target_weight = ui_manager_->profile_controller->get_current_weight();
-            float target_time_seconds = ui_manager_->profile_controller->get_current_time();
-            uint32_t target_time_ms = static_cast<uint32_t>((target_time_seconds * 1000.0f) + 0.5f);
-            ui_manager_->grind_controller->start_grind(target_weight, target_time_ms, ui_manager_->current_mode);
-        }
-        LOG_BLE("[%lums GRIND_START] start_grind() returned\n", millis());
+        start_grind_from_ready(ui_manager_->current_mode);
     } else if (ui_manager_->state_machine->is_state(UIState::GRINDING)) {
         if (ui_manager_->grind_controller) {
             ui_manager_->grind_controller->stop_grind();
@@ -303,9 +388,7 @@ void GrindingUIController::update_grind_button_icon() {
     } else if (ui_manager_->state_machine->is_state(UIState::GRINDING)) {
         lv_img_set_src(grind_icon_, LV_SYMBOL_STOP);
         lv_obj_set_style_bg_color(grind_button_,
-                                  ui_manager_->current_mode == GrindMode::TIME
-                                      ? lv_color_hex(THEME_COLOR_ACCENT)
-                                      : lv_color_hex(THEME_COLOR_PRIMARY),
+                                  lv_color_hex(grind_mode_color(ui_manager_->current_mode)),
                                   0);
     } else if (ui_manager_->state_machine->is_state(UIState::GRIND_COMPLETE)) {
         lv_img_set_src(grind_icon_, LV_SYMBOL_OK);
@@ -319,9 +402,7 @@ void GrindingUIController::update_grind_button_icon() {
     } else {
         lv_img_set_src(grind_icon_, LV_SYMBOL_PLAY);
         lv_obj_set_style_bg_color(grind_button_,
-                                  ui_manager_->current_mode == GrindMode::TIME
-                                      ? lv_color_hex(THEME_COLOR_ACCENT)
-                                      : lv_color_hex(THEME_COLOR_PRIMARY),
+                                  lv_color_hex(grind_mode_color(ui_manager_->current_mode)),
                                   0);
     }
 
@@ -337,7 +418,8 @@ void GrindingUIController::update_button_layout() {
     bool in_purge_confirm = ui_manager_->purge_confirm_screen.is_visible();
 
     bool should_show_pulse = (ui_manager_->state_machine->is_state(UIState::GRIND_COMPLETE) &&
-                              ui_manager_->current_mode == GrindMode::TIME);
+                              (ui_manager_->current_mode == GrindMode::TIME ||
+                               ui_manager_->current_mode == GrindMode::CALIBRATED_TIME));
 
     if (in_purge_confirm || should_show_pulse) {
         // Dual button layout: left button at -60, right button at +60
@@ -383,7 +465,7 @@ void GrindingUIController::update_grinding_targets() {
     const auto& session = ui_manager_->grind_controller->get_session_descriptor();
     ui_manager_->grinding_screen.set_chart_time_prediction(session.target_time_ms);
     ui_manager_->grinding_screen.update_target_weight(session.target_weight);
-    if (session.mode == GrindMode::TIME && session.target_time_ms > 0) {
+    if ((session.mode == GrindMode::TIME || session.mode == GrindMode::CALIBRATED_TIME) && session.target_time_ms > 0) {
         float target_time_seconds = static_cast<float>(session.target_time_ms) / 1000.0f;
         ui_manager_->grinding_screen.update_target_time(target_time_seconds);
     }
@@ -485,6 +567,24 @@ void GrindingUIController::handle_grind_event(const GrindEventData& event_data) 
             final_grind_progress_ = event_data.progress_percent;
             LOG_BLE("GRIND COMPLETE - Final settled weight captured: %.2fg (Progress: %d%%)\n",
                     final_grind_weight_, final_grind_progress_);
+
+            // Update calibration for CALIBRATED_TIME mode.
+            // Only the initial automatic grind feeds calibration — manual top-up
+            // pulses (pulse_count > 0) add weight without extending the measured
+            // grind time, so including them would inflate the flow-rate estimate.
+            if (event_data.mode == GrindMode::CALIBRATED_TIME &&
+                event_data.pulse_count == 0 &&
+                ui_manager_->profile_controller &&
+                event_data.final_weight >= GRIND_CALIBRATION_MIN_WEIGHT_G &&
+                event_data.total_motor_on_time_ms > 100) {
+                float motor_on_s = static_cast<float>(event_data.total_motor_on_time_ms) / 1000.0f;
+                float measured_flow = event_data.final_weight / motor_on_s;
+                int profile_idx = ui_manager_->profile_controller->get_current_profile();
+                ui_manager_->profile_controller->update_calibration(profile_idx, measured_flow);
+                LOG_BLE("CALIBRATION UPDATE - Profile %d: measured %.2f g/s (weight=%.1fg, time=%.1fs)\n",
+                        profile_idx, measured_flow, event_data.final_weight, motor_on_s);
+            }
+
             chart_updates_enabled_ = false;
             ui_manager_->switch_to_state(UIState::GRIND_COMPLETE);
             start_grind_complete_timer();
