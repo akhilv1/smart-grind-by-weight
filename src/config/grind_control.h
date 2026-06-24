@@ -69,6 +69,11 @@ enum class GrinderPurgeMode {
 //------------------------------------------------------------------------------
 #define GRIND_CALIBRATION_MIN_WEIGHT_G 2.0f                                      // Minimum final weight to accept calibration data
 #define GRIND_CALIBRATION_EMA_MAX_SAMPLES 10                                     // EMA window cap for flow rate smoothing
+// Hybrid-mode flow-rate bounds/defaults (kept separate from weight-mode pulse
+// constants so slower grinders can still calibrate without affecting weight mode)
+#define GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS 0.9f                             // Initial hybrid flow rate before any calibration
+#define GRIND_CALIBRATION_MIN_FLOW_RATE_GPS 0.5f                                 // Lowest measured flow accepted into hybrid calibration
+#define GRIND_CALIBRATION_MAX_FLOW_RATE_GPS 3.0f                                 // Highest measured flow accepted into hybrid calibration
 
 //------------------------------------------------------------------------------
 // TIMING CONSTRAINTS (Hardware-dependent)

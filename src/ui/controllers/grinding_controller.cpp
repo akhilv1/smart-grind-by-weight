@@ -345,7 +345,8 @@ void GrindingUIController::update_button_layout() {
     bool in_purge_confirm = ui_manager_->purge_confirm_screen.is_visible();
 
     bool should_show_pulse = (ui_manager_->state_machine->is_state(UIState::GRIND_COMPLETE) &&
-                              ui_manager_->current_mode == GrindMode::TIME);
+                              (ui_manager_->current_mode == GrindMode::TIME ||
+                               ui_manager_->current_mode == GrindMode::CALIBRATED_TIME));
 
     if (in_purge_confirm || should_show_pulse) {
         // Dual button layout: left button at -60, right button at +60
@@ -494,8 +495,12 @@ void GrindingUIController::handle_grind_event(const GrindEventData& event_data) 
             LOG_BLE("GRIND COMPLETE - Final settled weight captured: %.2fg (Progress: %d%%)\n",
                     final_grind_weight_, final_grind_progress_);
 
-            // Update calibration for CALIBRATED_TIME mode
+            // Update calibration for CALIBRATED_TIME mode.
+            // Only the initial automatic grind feeds calibration — manual top-up
+            // pulses (pulse_count > 0) add weight without extending the measured
+            // grind time, so including them would inflate the flow-rate estimate.
             if (event_data.mode == GrindMode::CALIBRATED_TIME &&
+                event_data.pulse_count == 0 &&
                 ui_manager_->profile_controller &&
                 event_data.final_weight >= GRIND_CALIBRATION_MIN_WEIGHT_G &&
                 event_data.total_motor_on_time_ms > 100) {

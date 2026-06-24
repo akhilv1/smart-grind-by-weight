@@ -158,7 +158,7 @@ void ProfileController::load_calibration() {
     const char* count_keys[] = {"cal_cnt0", "cal_cnt1", "cal_cnt2"};
 
     for (int i = 0; i < USER_PROFILE_COUNT; i++) {
-        calibration[i].flow_rate_gps = preferences->getFloat(flow_keys[i], GRIND_PULSE_FLOW_RATE_FALLBACK_GPS);
+        calibration[i].flow_rate_gps = preferences->getFloat(flow_keys[i], GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS);
         calibration[i].grind_count = static_cast<uint16_t>(preferences->getInt(count_keys[i], 0));
     }
 }
@@ -174,7 +174,7 @@ void ProfileController::save_calibration(int index) {
 }
 
 float ProfileController::get_calibrated_flow_rate(int index) const {
-    if (index < 0 || index >= USER_PROFILE_COUNT) return GRIND_PULSE_FLOW_RATE_FALLBACK_GPS;
+    if (index < 0 || index >= USER_PROFILE_COUNT) return GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS;
     return calibration[index].flow_rate_gps;
 }
 
@@ -186,14 +186,14 @@ uint16_t ProfileController::get_calibration_count(int index) const {
 float ProfileController::get_calibrated_time(int index) const {
     if (index < 0 || index >= USER_PROFILE_COUNT) return 0.0f;
     float flow = calibration[index].flow_rate_gps;
-    if (flow < GRIND_FLOW_RATE_MIN_SANE_GPS) flow = GRIND_PULSE_FLOW_RATE_FALLBACK_GPS;
+    if (flow < GRIND_CALIBRATION_MIN_FLOW_RATE_GPS) flow = GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS;
     return profiles[index].weight / flow;
 }
 
 void ProfileController::update_calibration(int index, float measured_flow_rate) {
     if (index < 0 || index >= USER_PROFILE_COUNT) return;
-    if (measured_flow_rate < GRIND_FLOW_RATE_MIN_SANE_GPS ||
-        measured_flow_rate > GRIND_FLOW_RATE_MAX_SANE_GPS) return;
+    if (measured_flow_rate < GRIND_CALIBRATION_MIN_FLOW_RATE_GPS ||
+        measured_flow_rate > GRIND_CALIBRATION_MAX_FLOW_RATE_GPS) return;
 
     auto& cal = calibration[index];
     constexpr float kMaxSamples = 10.0f;
@@ -205,7 +205,7 @@ void ProfileController::update_calibration(int index, float measured_flow_rate) 
 
 void ProfileController::reset_calibration(int index) {
     if (index < 0 || index >= USER_PROFILE_COUNT) return;
-    calibration[index].flow_rate_gps = GRIND_PULSE_FLOW_RATE_FALLBACK_GPS;
+    calibration[index].flow_rate_gps = GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS;
     calibration[index].grind_count = 0;
     save_calibration(index);
 }

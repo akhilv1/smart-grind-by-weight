@@ -1078,8 +1078,9 @@ void GrindController::start_additional_pulse() {
 }
 
 bool GrindController::can_pulse() const {
-    // Only allow pulses in time mode when grind is completed and not in pulse phase
-    return mode == GrindMode::TIME &&
+    // Allow manual pulses in time and hybrid (calibrated-time) modes once the
+    // grind has completed, so the user can top up toward the target weight.
+    return (mode == GrindMode::TIME || mode == GrindMode::CALIBRATED_TIME) &&
            phase == GrindPhase::COMPLETED;
 }
 

@@ -11,7 +11,7 @@ struct Profile {
 
 // Per-profile calibration data for CALIBRATED_TIME mode
 struct CalibrationData {
-    float flow_rate_gps = 1.5f;   // Exponential moving average of grams/second
+    float flow_rate_gps = 0.9f;   // Exponential moving average of grams/second (GRIND_CALIBRATION_DEFAULT_FLOW_RATE_GPS)
     uint16_t grind_count = 0;     // Number of calibration samples taken
 };
 
