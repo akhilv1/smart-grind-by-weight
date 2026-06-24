@@ -56,11 +56,13 @@ void ReadyScreen::create() {
 void ReadyScreen::create_mode_indicator() {
     mode_indicator = lv_obj_create(screen);
     lv_obj_remove_style_all(mode_indicator);
-    lv_obj_set_size(mode_indicator, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    // Fixed size so the badge always overdraws the same rect. With SIZE_CONTENT
+    // it shrank between modes (e.g. "Weight" -> "Time"), and the exposed area over
+    // the transparent parent wasn't repainted, leaving a stale colored sliver.
+    lv_obj_set_size(mode_indicator, 120, 40);
     lv_obj_set_style_radius(mode_indicator, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(mode_indicator, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_hor(mode_indicator, 14, 0);
-    lv_obj_set_style_pad_ver(mode_indicator, 6, 0);
+    lv_obj_set_style_pad_all(mode_indicator, 0, 0);
     lv_obj_align(mode_indicator, LV_ALIGN_TOP_LEFT, 8, 6);
     lv_obj_clear_flag(mode_indicator, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(mode_indicator, LV_OBJ_FLAG_CLICKABLE);
