@@ -2,6 +2,7 @@
 
 #include "grind_mode.h"
 #include <cstddef>
+#include <cstdint>
 
 class ProfileController;
 
@@ -14,6 +15,10 @@ struct GrindModeTraits {
 };
 
 const GrindModeTraits& get_grind_mode_traits(GrindMode mode);
+
+// Theme color (RGB hex) representing each grind mode:
+// Weight = red, Time = blue, Hybrid (calibrated time) = green.
+uint32_t grind_mode_color(GrindMode mode);
 
 float get_profile_target(const ProfileController& profiles, GrindMode mode, int index);
 void set_profile_target(ProfileController& profiles, GrindMode mode, int index, float value);

@@ -44,6 +44,15 @@ const GrindModeTraits& get_grind_mode_traits(GrindMode mode) {
     return kModeTraits[index];
 }
 
+uint32_t grind_mode_color(GrindMode mode) {
+    switch (mode) {
+        case GrindMode::TIME:            return THEME_COLOR_ACCENT;   // blue
+        case GrindMode::CALIBRATED_TIME: return THEME_COLOR_SUCCESS;  // green (Hybrid)
+        case GrindMode::WEIGHT:
+        default:                         return THEME_COLOR_PRIMARY;  // red
+    }
+}
+
 float get_profile_target(const ProfileController& profiles, GrindMode mode, int index) {
     if (mode == GrindMode::TIME) {
         return profiles.get_profile_time(index);

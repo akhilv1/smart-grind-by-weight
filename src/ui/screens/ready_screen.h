@@ -10,6 +10,8 @@ private:
     lv_obj_t* profile_tabs[4];
     lv_obj_t* weight_labels[3];
     lv_obj_t* menu_tab;
+    lv_obj_t* mode_indicator;        // Top-left color-coded grind-mode badge
+    lv_obj_t* mode_indicator_label;
     bool visible;
 
 public:
@@ -28,4 +30,6 @@ public:
 private:
     void create_profile_page(lv_obj_t* parent, int profile_index, const char* profile_name, float weight);
     void create_menu_page(lv_obj_t* parent);
+    void create_mode_indicator();
+    void update_mode_indicator(GrindMode mode);
 };

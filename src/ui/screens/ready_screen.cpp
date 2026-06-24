@@ -45,9 +45,41 @@ void ReadyScreen::create() {
     // Create menu tab page
     create_menu_page(menu_tab);
 
+    // Top-left grind-mode badge (color-coded: red/blue/green)
+    create_mode_indicator();
+
     update_profile_values(default_weights, GrindMode::WEIGHT);
 
     visible = false;
+}
+
+void ReadyScreen::create_mode_indicator() {
+    mode_indicator = lv_obj_create(screen);
+    lv_obj_remove_style_all(mode_indicator);
+    lv_obj_set_size(mode_indicator, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_radius(mode_indicator, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(mode_indicator, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_hor(mode_indicator, 14, 0);
+    lv_obj_set_style_pad_ver(mode_indicator, 6, 0);
+    lv_obj_align(mode_indicator, LV_ALIGN_TOP_LEFT, 8, 6);
+    lv_obj_clear_flag(mode_indicator, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(mode_indicator, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(mode_indicator, LV_OBJ_FLAG_GESTURE_BUBBLE);  // let swipe pass through
+
+    mode_indicator_label = lv_label_create(mode_indicator);
+    lv_obj_set_style_text_color(mode_indicator_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(mode_indicator_label, &lv_font_montserrat_24, 0);
+    lv_obj_center(mode_indicator_label);
+
+    lv_obj_move_foreground(mode_indicator);
+}
+
+void ReadyScreen::update_mode_indicator(GrindMode mode) {
+    if (!mode_indicator || !mode_indicator_label) {
+        return;
+    }
+    lv_obj_set_style_bg_color(mode_indicator, lv_color_hex(grind_mode_color(mode)), 0);
+    lv_label_set_text(mode_indicator_label, get_grind_mode_traits(mode).name);
 }
 
 void ReadyScreen::create_profile_page(lv_obj_t* parent, int profile_index, const char* profile_name, float weight) {
@@ -92,6 +124,7 @@ void ReadyScreen::hide() {
 }
 
 void ReadyScreen::update_profile_values(const float values[3], GrindMode mode) {
+    update_mode_indicator(mode);
     for (int i = 0; i < 3; i++) {
         if (weight_labels[i]) {
             char text[24];

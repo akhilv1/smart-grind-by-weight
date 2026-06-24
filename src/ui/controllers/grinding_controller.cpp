@@ -7,6 +7,7 @@
 #include "../../config/constants.h"
 #include "../../controllers/grind_events.h"
 #include "../../controllers/grind_mode.h"
+#include "../../controllers/grind_mode_traits.h"
 #include "../../logging/grind_logging.h"
 #include "../ui_manager.h"
 
@@ -314,9 +315,7 @@ void GrindingUIController::update_grind_button_icon() {
     } else if (ui_manager_->state_machine->is_state(UIState::GRINDING)) {
         lv_img_set_src(grind_icon_, LV_SYMBOL_STOP);
         lv_obj_set_style_bg_color(grind_button_,
-                                  ui_manager_->current_mode == GrindMode::TIME
-                                      ? lv_color_hex(THEME_COLOR_ACCENT)
-                                      : lv_color_hex(THEME_COLOR_PRIMARY),
+                                  lv_color_hex(grind_mode_color(ui_manager_->current_mode)),
                                   0);
     } else if (ui_manager_->state_machine->is_state(UIState::GRIND_COMPLETE)) {
         lv_img_set_src(grind_icon_, LV_SYMBOL_OK);
@@ -330,9 +329,7 @@ void GrindingUIController::update_grind_button_icon() {
     } else {
         lv_img_set_src(grind_icon_, LV_SYMBOL_PLAY);
         lv_obj_set_style_bg_color(grind_button_,
-                                  ui_manager_->current_mode == GrindMode::TIME
-                                      ? lv_color_hex(THEME_COLOR_ACCENT)
-                                      : lv_color_hex(THEME_COLOR_PRIMARY),
+                                  lv_color_hex(grind_mode_color(ui_manager_->current_mode)),
                                   0);
     }
 
