@@ -590,6 +590,9 @@ void WeightSensor::save_tare_offset() {
 #endif
     if (prefs) {
         prefs->putInt("hx_tare", tare_offset);
+        // The shared "grinder" handle is never closed at runtime, so commit
+        // explicitly - otherwise the write is lost on reboot
+        prefs->commit();
         LOG_BLE("Saved tare offset to NVS: %ld\n", (long)tare_offset);
     }
 }

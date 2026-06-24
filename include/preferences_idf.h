@@ -95,6 +95,12 @@ public:
         opened = false;
     }
 
+    /** Flush pending writes to flash without closing the handle. */
+    bool commit() {
+        if (!opened || read_only) return false;
+        return nvs_commit(handle) == ESP_OK;
+    }
+
     // -------------------------------------------------------------------------
     // bool
     // -------------------------------------------------------------------------
