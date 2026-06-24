@@ -39,7 +39,7 @@ void ProfileController::load_profiles() {
     
     // Load grind mode (default to WEIGHT if not set, validate range)
     int stored_mode = preferences->getInt("grind_mode", static_cast<int>(GrindMode::WEIGHT));
-    if (stored_mode < 0 || stored_mode > static_cast<int>(GrindMode::CALIBRATED_TIME)) {
+    if (stored_mode < 0 || stored_mode > static_cast<int>(GrindMode::SINGLE_AUTO)) {
         stored_mode = static_cast<int>(GrindMode::WEIGHT);
     }
     current_grind_mode = static_cast<GrindMode>(stored_mode);

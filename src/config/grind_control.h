@@ -76,6 +76,18 @@ enum class GrinderPurgeMode {
 #define GRIND_CALIBRATION_MAX_FLOW_RATE_GPS 3.0f                                 // Highest measured flow accepted into hybrid calibration
 
 //------------------------------------------------------------------------------
+// SINGLE DOSE (AUTO) MODE
+//------------------------------------------------------------------------------
+#define GRIND_SINGLE_DOSE_FLOW_THRESHOLD_GPS 0.1f                                // Flow at/below this counts as "beans run out"
+#define GRIND_SINGLE_DOSE_STOP_DELAY_MS 3000                                     // Keep grinding this long after flow drops, then stop
+#define GRIND_SINGLE_DOSE_MIN_FLOW_ARMED_GPS 0.3f                                // Flow must exceed this once before stop detection arms
+
+//------------------------------------------------------------------------------
+// MANUAL MODE
+//------------------------------------------------------------------------------
+#define GRIND_MANUAL_MAX_DURATION_MS 30000                                       // Safety cap on a single manual grind
+
+//------------------------------------------------------------------------------
 // TIMING CONSTRAINTS (Hardware-dependent)
 //------------------------------------------------------------------------------
 // Motor response latency - runtime configurable via auto-tune

@@ -27,6 +27,20 @@ constexpr GrindModeTraits kModeTraits[] = {
         "Target: ",
         " / ",
         USER_FINE_WEIGHT_ADJUSTMENT_G   // Edit in weight increments
+    },
+    {
+        "Manual",       // Hold-to-grind; no target
+        "g",
+        "Target: ",
+        " / ",
+        USER_FINE_WEIGHT_ADJUSTMENT_G
+    },
+    {
+        "Auto",         // Single-dose auto-stop; no target
+        "g",
+        "Target: ",
+        " / ",
+        USER_FINE_WEIGHT_ADJUSTMENT_G
     }
 };
 
@@ -48,6 +62,8 @@ uint32_t grind_mode_color(GrindMode mode) {
     switch (mode) {
         case GrindMode::TIME:            return THEME_COLOR_ACCENT;   // blue
         case GrindMode::CALIBRATED_TIME: return THEME_COLOR_SUCCESS;  // green (Hybrid)
+        case GrindMode::MANUAL:          return THEME_COLOR_WARNING;  // orange
+        case GrindMode::SINGLE_AUTO:     return THEME_COLOR_ACCENT;   // blue (Single/Auto)
         case GrindMode::WEIGHT:
         default:                         return THEME_COLOR_PRIMARY;  // red
     }
