@@ -58,7 +58,7 @@ void ReadyUIController::handle_profile_long_press() {
     ui_manager_->switch_to_state(UIState::EDIT);
 }
 
-void ReadyUIController::toggle_mode() {
+void ReadyUIController::toggle_mode(bool forward) {
     if (!ui_manager_ || ui_manager_->current_tab >= 3) {
         return;
     }
@@ -91,7 +91,8 @@ void ReadyUIController::toggle_mode() {
             break;
         }
     }
-    ui_manager_->current_mode = modes[(current_index + 1) % count];
+    int step = forward ? 1 : (count - 1);  // -1 mod count = go back one (carousel)
+    ui_manager_->current_mode = modes[(current_index + step) % count];
 
     if (ui_manager_->profile_controller) {
         ui_manager_->profile_controller->set_grind_mode(ui_manager_->current_mode);
@@ -142,7 +143,8 @@ void ReadyUIController::register_events() {
         }
         UIManager* ui = static_cast<UIManager*>(lv_event_get_user_data(e));
         if (ui && ui->state_machine->is_state(UIState::READY) && ui->ready_controller_) {
-            ui->ready_controller_->toggle_mode();
+            // Carousel: swipe up advances to the next mode, swipe down goes back.
+            ui->ready_controller_->toggle_mode(dir == LV_DIR_TOP);
         }
     };
 

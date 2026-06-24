@@ -15,7 +15,7 @@ public:
     void refresh_profiles();
     void handle_tab_change(int tab);
     void handle_profile_long_press();
-    void toggle_mode();
+    void toggle_mode(bool forward = true);
 
 private:
     UIManager* ui_manager_;
