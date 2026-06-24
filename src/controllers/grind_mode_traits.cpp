@@ -58,6 +58,20 @@ const GrindModeTraits& get_grind_mode_traits(GrindMode mode) {
     return kModeTraits[index];
 }
 
+int grind_modes_for_feed(FeedMode feed, GrindMode out[5]) {
+    if (feed == FeedMode::SINGLE) {
+        out[0] = GrindMode::SINGLE_AUTO;
+        out[1] = GrindMode::MANUAL;
+        return 2;
+    }
+    // HOPPER (default)
+    out[0] = GrindMode::WEIGHT;
+    out[1] = GrindMode::TIME;
+    out[2] = GrindMode::CALIBRATED_TIME;
+    out[3] = GrindMode::MANUAL;
+    return 4;
+}
+
 uint32_t grind_mode_color(GrindMode mode) {
     switch (mode) {
         case GrindMode::TIME:            return THEME_COLOR_ACCENT;   // blue

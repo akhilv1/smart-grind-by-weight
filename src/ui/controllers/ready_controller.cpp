@@ -72,12 +72,26 @@ void ReadyUIController::toggle_mode() {
         return;
     }
 
-    // Cycle: WEIGHT → TIME → CALIBRATED_TIME → WEIGHT
-    switch (ui_manager_->current_mode) {
-        case GrindMode::WEIGHT:          ui_manager_->current_mode = GrindMode::TIME; break;
-        case GrindMode::TIME:            ui_manager_->current_mode = GrindMode::CALIBRATED_TIME; break;
-        case GrindMode::CALIBRATED_TIME: ui_manager_->current_mode = GrindMode::WEIGHT; break;
+    // Cycle within the current feed mode's list of grind modes (wrapping)
+    int feed_mode_int = static_cast<int>(FeedMode::HOPPER);
+    if (ui_manager_->hardware_manager) {
+        Preferences* main_prefs = ui_manager_->hardware_manager->get_preferences();
+        if (main_prefs) {
+            feed_mode_int = main_prefs->getInt("feed_mode", static_cast<int>(FeedMode::HOPPER));
+        }
     }
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
+
+    GrindMode modes[5];
+    int count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), modes);
+    int current_index = 0;
+    for (int i = 0; i < count; ++i) {
+        if (modes[i] == ui_manager_->current_mode) {
+            current_index = i;
+            break;
+        }
+    }
+    ui_manager_->current_mode = modes[(current_index + 1) % count];
 
     if (ui_manager_->profile_controller) {
         ui_manager_->profile_controller->set_grind_mode(ui_manager_->current_mode);

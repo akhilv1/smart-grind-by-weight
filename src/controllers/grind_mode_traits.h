@@ -20,6 +20,11 @@ const GrindModeTraits& get_grind_mode_traits(GrindMode mode);
 // Weight = red, Time = blue, Hybrid (calibrated time) = green.
 uint32_t grind_mode_color(GrindMode mode);
 
+// Fills `out` with the ordered grind modes available for the given feed mode and
+// returns the count. Hopper -> {WEIGHT, TIME, CALIBRATED_TIME, MANUAL} (4),
+// Single -> {SINGLE_AUTO, MANUAL} (2). `out` must hold at least 5 elements.
+int grind_modes_for_feed(FeedMode feed, GrindMode out[5]);
+
 float get_profile_target(const ProfileController& profiles, GrindMode mode, int index);
 void set_profile_target(ProfileController& profiles, GrindMode mode, int index, float value);
 float get_current_profile_target(const ProfileController& profiles, GrindMode mode);

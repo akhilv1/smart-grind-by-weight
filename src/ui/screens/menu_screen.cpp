@@ -5,6 +5,7 @@
 #include "../../logging/grind_logging.h"
 #include "../../system/statistics_manager.h"
 #include "../../hardware/hardware_manager.h"
+#include "../../controllers/grind_mode_traits.h"
 #include "grinding_screen.h"
 #include "../event_bridge_lvgl.h"
 #include "../../config/logging.h"
@@ -411,6 +412,12 @@ static void grind_mode_callback(int selected_index, void* user_data) {
     EventBridgeLVGL::handle_event(EventBridgeLVGL::EventType::GRIND_MODE_RADIO_BUTTON, nullptr);
 }
 
+// Callback for feed mode radio button selection (Hopper/Single)
+static void feed_mode_callback(int selected_index, void* user_data) {
+    // Trigger the event system instead of handling directly
+    EventBridgeLVGL::handle_event(EventBridgeLVGL::EventType::FEED_MODE_RADIO_BUTTON, nullptr);
+}
+
 // Callback for grinder purge mode radio button selection
 static void grinder_purge_mode_callback(int selected_index, void* user_data) {
     // Trigger the event system instead of handling directly
@@ -426,21 +433,62 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
     lv_obj_set_scroll_dir(parent, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
 
+    // Feed selection separator/label (Hopper vs Single dose)
+    create_separator(parent, "Feed");
+
+    // Read current feed mode and grind mode from main grinder preferences
+    int feed_mode_int = static_cast<int>(FeedMode::HOPPER);
+    int stored_grind_mode = static_cast<int>(GrindMode::WEIGHT);
+    if (hardware_manager) {
+        Preferences* main_prefs = hardware_manager->get_preferences();
+        if (main_prefs) {
+            feed_mode_int = main_prefs->getInt("feed_mode", static_cast<int>(FeedMode::HOPPER));
+            stored_grind_mode = main_prefs->getInt("grind_mode", static_cast<int>(GrindMode::WEIGHT));
+        }
+    }
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
+
+    // Feed mode radio (Hopper/Single) in a row
+    const char* feed_modes[] = {"Hopper", "Single"};
+    feed_mode_radio_group = create_radio_button_group(
+        parent,
+        feed_modes,
+        2,
+        LV_FLEX_FLOW_ROW,
+        feed_mode_int,
+        135, 100,  // Width, Height
+        feed_mode_callback,
+        this
+    );
+
     // Mode Selection separator/label
     create_separator(parent, "Mode Selection");
 
-    // Radio button group for grind mode selection — one mode per row
-    const char* grind_modes[] = {"Weight", "Time", "Hybrid"};
-    grind_mode_radio_group = create_radio_button_group(
-        parent,
-        grind_modes,
-        3,
-        LV_FLEX_FLOW_COLUMN,
-        0,  // Weight initially selected
-        280, 70,  // Width, Height (full-width stacked rows)
-        grind_mode_callback,
-        this
-    );
+    // Container that holds the (rebuildable) grind-mode radio group. Recreated
+    // whenever the feed mode changes since the available modes differ per feed.
+    grind_mode_radio_container = lv_obj_create(parent);
+    lv_obj_set_style_bg_opa(grind_mode_radio_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(grind_mode_radio_container, 0, 0);
+    lv_obj_set_style_pad_all(grind_mode_radio_container, 0, 0);
+    lv_obj_set_style_margin_all(grind_mode_radio_container, 0, 0);
+    lv_obj_set_size(grind_mode_radio_container, 280, LV_SIZE_CONTENT);
+    lv_obj_set_layout(grind_mode_radio_container, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(grind_mode_radio_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(grind_mode_radio_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_clear_flag(grind_mode_radio_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Determine the selected grind-mode index within the current feed's mode list
+    GrindMode feed_modes_list[5];
+    int feed_mode_count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), feed_modes_list);
+    int selected_index = 0;
+    for (int i = 0; i < feed_mode_count; ++i) {
+        if (static_cast<int>(feed_modes_list[i]) == stored_grind_mode) {
+            selected_index = i;
+            break;
+        }
+    }
+
+    build_grind_mode_radio(feed_mode_int, selected_index);
 
     // Descriptive label for swipe functionality
     lv_obj_t* swipe_desc_label = lv_label_create(parent);
@@ -518,6 +566,42 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
         lv_obj_add_event_cb(grind_freshness_hours_slider, EventBridgeLVGL::dispatch_event, LV_EVENT_RELEASED,
                            reinterpret_cast<void*>(static_cast<intptr_t>(ET::GRIND_FRESHNESS_HOURS_SLIDER_RELEASED)));
     }
+}
+
+void MenuScreen::build_grind_mode_radio(int feed_mode_int, int selected_index) {
+    if (!grind_mode_radio_container) {
+        return;
+    }
+
+    // Tear down any existing radio group; the helper's user_data is freed via
+    // its LV_EVENT_DELETE handler when the child is cleaned.
+    lv_obj_clean(grind_mode_radio_container);
+    grind_mode_radio_group = nullptr;
+
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
+
+    GrindMode modes[5];
+    int count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), modes);
+
+    // trait names are static string literals, safe to point at from a local array
+    const char* names[5];
+    for (int i = 0; i < count; ++i) {
+        names[i] = get_grind_mode_traits(modes[i]).name;
+    }
+
+    int clamped_index = selected_index;
+    if (clamped_index < 0 || clamped_index >= count) clamped_index = 0;
+
+    grind_mode_radio_group = create_radio_button_group(
+        grind_mode_radio_container,
+        names,
+        count,
+        LV_FLEX_FLOW_COLUMN,
+        clamped_index,
+        280, 70,  // Width, Height (full-width stacked rows)
+        grind_mode_callback,
+        this
+    );
 }
 
 void MenuScreen::create_scale_page(lv_obj_t* parent) {
@@ -1195,24 +1279,39 @@ void MenuScreen::update_grind_mode_toggles() {
     bool swipe_enabled = swipe_prefs.getBool("enabled", false);
     swipe_prefs.end();
 
-    // Read current grind mode from main grinder preferences using hardware manager
-    int mode_index = 0; // Default to Weight (index 0)
+    // Read current grind/feed mode from main grinder preferences using hardware manager
+    int feed_mode_int = static_cast<int>(FeedMode::HOPPER);  // Default to Hopper
+    int stored_grind_mode = static_cast<int>(GrindMode::WEIGHT);  // Default to Weight
     int grinder_purge_mode_index = GRIND_PURGE_MODE_DEFAULT;  // Default to Purge
     float grinder_purge_amount_g = GRIND_PURGE_AMOUNT_DEFAULT_G;  // Default to 1.0g
     if (hardware_manager) {
         Preferences* main_prefs = hardware_manager->get_preferences();
         if (main_prefs) {
-            int stored_mode = main_prefs->getInt("grind_mode", static_cast<int>(GrindMode::WEIGHT));
-            mode_index = stored_mode;  // Direct mapping: WEIGHT=0, TIME=1, CALIBRATED_TIME=2
-            if (mode_index < 0 || mode_index > 2) mode_index = 0;
+            feed_mode_int = main_prefs->getInt("feed_mode", static_cast<int>(FeedMode::HOPPER));
+            stored_grind_mode = main_prefs->getInt("grind_mode", static_cast<int>(GrindMode::WEIGHT));
             grinder_purge_mode_index = main_prefs->getInt(GrindController::PREF_KEY_GRINDER_MODE, GRIND_PURGE_MODE_DEFAULT);
             grinder_purge_amount_g = main_prefs->getFloat(GrindController::PREF_KEY_GRINDER_AMOUNT_G, GRIND_PURGE_AMOUNT_DEFAULT_G);
         }
     }
+    if (feed_mode_int < 0 || feed_mode_int > 1) feed_mode_int = 0;
 
-    if (grind_mode_radio_group) {
-        radio_button_group_set_selection(grind_mode_radio_group, mode_index);
+    // Compute the selected index of the stored grind mode within the current feed's list
+    GrindMode feed_modes_list[5];
+    int feed_mode_count = grind_modes_for_feed(static_cast<FeedMode>(feed_mode_int), feed_modes_list);
+    int selected_index = 0;
+    for (int i = 0; i < feed_mode_count; ++i) {
+        if (static_cast<int>(feed_modes_list[i]) == stored_grind_mode) {
+            selected_index = i;
+            break;
+        }
     }
+
+    if (feed_mode_radio_group) {
+        radio_button_group_set_selection(feed_mode_radio_group, feed_mode_int);
+    }
+
+    // Rebuild the grind-mode radio so it reflects the current feed's available modes
+    build_grind_mode_radio(feed_mode_int, selected_index);
 
     if (grind_mode_swipe_toggle) {
         if (swipe_enabled) {
