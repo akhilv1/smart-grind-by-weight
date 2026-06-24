@@ -22,7 +22,7 @@ constexpr GrindModeTraits kModeTraits[] = {
         USER_FINE_TIME_ADJUSTMENT_S
     },
     {
-        "Cal. Time",
+        "Hybrid",
         "g",            // Primary target is weight
         "Target: ",
         " / ",

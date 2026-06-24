@@ -429,15 +429,15 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
     // Mode Selection separator/label
     create_separator(parent, "Mode Selection");
 
-    // Radio button group for grind mode selection at top
-    const char* grind_modes[] = {"Weight", "Time", "Cal. Time"};
+    // Radio button group for grind mode selection — one mode per row
+    const char* grind_modes[] = {"Weight", "Time", "Hybrid"};
     grind_mode_radio_group = create_radio_button_group(
         parent,
         grind_modes,
         3,
-        LV_FLEX_FLOW_ROW,
+        LV_FLEX_FLOW_COLUMN,
         0,  // Weight initially selected
-        88, 100,  // Width, Height (narrower to fit 3 buttons)
+        280, 70,  // Width, Height (full-width stacked rows)
         grind_mode_callback,
         this
     );
