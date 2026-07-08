@@ -91,27 +91,59 @@ class GrinderTool:
             self.print_warning("Virtual environment not found, setting up automatically...")
             return self.install_dependencies()
         return True
+
+    def find_python_interpreter(self) -> Optional[str]:
+        """Locate a Python >= 3.10 interpreter to build the venv.
+
+        PlatformIO 6.1.19+ requires Python >= 3.10, so the venv must be created with a
+        suitable interpreter - NOT necessarily the one running this script (e.g. the system
+        python3 may be 3.9). Prefer newer versions.
+        """
+        candidates = ["python3.13", "python3.12", "python3.11", "python3.10", "python3", "python"]
+        for cmd in candidates:
+            path = shutil.which(cmd)
+            if not path:
+                continue
+            try:
+                result = subprocess.run(
+                    [path, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+                    capture_output=True, text=True)
+                if result.returncode != 0:
+                    continue
+                major, minor = (int(x) for x in result.stdout.strip().split("."))
+                if (major, minor) >= (3, 10):
+                    return path
+            except Exception:
+                continue
+        return None
     
     def install_dependencies(self) -> bool:
         """Create virtual environment and install dependencies."""
         try:
             if not self.venv_dir.exists():
                 self.print_info("Creating virtual environment...")
-                
-                # Find Python executable
-                python_cmd = None
-                for cmd in ["python3", "python"]:
-                    if shutil.which(cmd):
-                        python_cmd = cmd
-                        break
-                
+
+                # Find a Python >= 3.10 interpreter (required by PlatformIO 6.1.19+).
+                # Note: we must create the venv with this interpreter via subprocess, since
+                # venv.create() would use the interpreter running this script (often 3.9).
+                python_cmd = self.find_python_interpreter()
                 if not python_cmd:
-                    self.print_error("Python not found. Please install Python 3.8+")
+                    self.print_error("Python 3.10+ not found. Install it (e.g. `brew install python@3.13`) and retry.")
                     return False
-                
-                # Create virtual environment
-                venv.create(self.venv_dir, with_pip=True)
-            
+
+                self.print_info(f"Using {python_cmd} to create the virtual environment")
+                create_result = subprocess.run(
+                    [python_cmd, "-m", "venv", str(self.venv_dir)],
+                    capture_output=True, text=True)
+                if create_result.returncode != 0:
+                    self.print_error(f"Failed to create virtual environment: {create_result.stderr}")
+                    return False
+
+                # Ensure a modern pip so current wheels resolve
+                subprocess.run(
+                    [str(self.venv_python), "-m", "pip", "install", "-q", "-U", "pip"],
+                    capture_output=True, text=True)
+
             self.print_info("Installing Python packages...")
             if not self.venv_pip.exists():
                 self.print_error(f"Virtual environment pip not found at: {self.venv_pip}")

@@ -25,6 +25,10 @@ void DisplayManager::init() {
         return;
     }
 
+    // Keep the panel dark until the first UI frame (the boot splash) is flushed, so the
+    // power-on render artifact is never shown. The boot sequence fades the backlight up.
+    static_cast<Arduino_CO5300*>(gfx_device)->setBrightness(0);
+
 #if HW_DISPLAY_ROTATE_180
     // Arduino_CO5300's built-in rotation uses non-standard MADCTL flip bits that
     // don't mirror this panel, so we rotate 180deg ourselves. The panel stays on
@@ -102,8 +106,15 @@ void DisplayManager::init() {
     lvgl_input = lv_indev_create();
     lv_indev_set_type(lvgl_input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(lvgl_input, touchpad_read_cb);
-    
+
     initialized = true;
+
+    // Init succeeded: bring the panel up to a visible level right here, synchronously. The boot
+    // splash was blacked out above only to hide the power-on render artifact; restoring brightness
+    // now (instead of relying on an animation that runs later in the UI task) guarantees the
+    // display can never be left dark if that task or animation fails to run. UIManager applies the
+    // user's configured brightness once the splash hands off.
+    set_brightness(USER_SCREEN_BRIGHTNESS_NORMAL);
 }
 
 void DisplayManager::update() {

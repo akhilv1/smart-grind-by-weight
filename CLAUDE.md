@@ -36,8 +36,13 @@ python3 tools/grinder.py analyze
 - **GrindController**: 9-phase state machine with predictive flow control, 10 pulse corrections, mechanical instability detection, and time mode additional pulses
 - **LoadCell (HX711)**: Multi-mode precision weight measurement (instant, smoothed, filtered), calibration flag, noise diagnostics
 - **DiagnosticsController**: System health monitoring (calibration status, sustained noise, mechanical instability), state persistence, hysteresis, priority-based warnings
-- **UIManager**: 7 screens with LVGL integration; menu page surfaces quick Tools (Scale view, Calibrate, Tune Pulses, Motor Test) followed by Settings (Bluetooth, Display, Grind Settings) and Info sections (Diagnostics, System Info, Logs & Data, Lifetime Stats), warning icon indicator, split-button layout for time mode pulses
-- **StateMachine**: Central state coordination (READY → GRINDING → GRIND_COMPLETE)
+- **UIManager**: 8 screens with LVGL integration (including the boot splash); menu page surfaces quick Tools (Scale view, Calibrate, Tune Pulses, Motor Test) followed by Settings (Bluetooth, Display, Grind Settings) and Info sections (Diagnostics, System Info, Logs & Data, Lifetime Stats), warning icon indicator, split-button layout for time mode pulses
+- **StateMachine**: Central state coordination (BOOT → READY → GRINDING → GRIND_COMPLETE)
+
+**Boot Splash:**
+- On boot the device starts in `UIState::BOOT` showing a centered logo on an opaque black screen (`src/ui/screens/boot_screen.*`). The panel backlight is forced to 0 in `DisplayManager::init()` and only faded up once the first splash frame has flushed, hiding the power-on render artifact.
+- `UIManager::update_boot_sequence()` (runs in the UI render task) fades the backlight in, holds the logo while background init runs (gated on `weight_sampling_task.is_hardware_ready()`, min ~1.2s, hard cap ~6s), then fades the logo out and calls `finish_boot()` → `switch_to_state(post_boot_state)` (READY / CALIBRATION / OTA_UPDATE_FAILED, chosen in `main.cpp`).
+- **Logo asset**: `assets/boot_logo.png` (any size) is converted to `src/ui/assets/boot_logo.c` (LVGL RGB565A8, `boot_logo`) via `python3 tools/convert_logo.py` (auto-resizes to ~240px wide). Re-run after replacing the PNG.
 
 **Update Intervals:** 20ms grind control, 25ms load cell (active), 50ms UI/hardware
 
@@ -65,6 +70,13 @@ python3 tools/grinder.py analyze
 - **Purging**: Radio buttons (Prime/Purge) and Amount slider (0.1g-5.0g)
 - **Preferences**: `swipe.enabled` (boolean), `grind_mode` (0=Weight, 1=Time), `chute_mode` (0=Prime, 1=Purge), `chute_amount_g` (float)
 - **Behavior**: Swipe gestures only work when enabled; direct mode selection always works
+
+**Display / Screensaver:** Configurable through Menu → Display page
+- **Brightness**: Normal brightness slider (min 15%)
+- **Screensaver mode**: Radio buttons for **Dim** (drops to the dimmed-brightness slider value) or **Off** (backlight fully to 0). The dimmed-brightness slider greys out in Off mode.
+- **Sleep after**: Timeout slider with discrete steps (15s, 30s, 1/2/5/10/15/30 min, **Never**). "Never" disables the screensaver.
+- **Behavior**: `ScreenTimeoutController` engages the screensaver after the configured inactivity timeout (touch + weight activity reset it); any touch/weight activity restores normal brightness (the wake tap also passes through to the UI). The screensaver never engages during grinding.
+- **Preferences** (NVS namespace `brightness`): `normal` (float 0-1), `screensaver` (float 0-1, dimmed level), `ss_mode` (int: 0=Dim, 1=Off, default 0), `ss_timeout` (int ms, default 300000; 0 = Never)
 
 **Color Scheme (RGB565):**
 - `COLOR_PRIMARY`: 0xFF0000 (Red) - Primary theme color
