@@ -10,8 +10,9 @@
 #include "ota_handler.h"
 #include "data_stream.h"
 
-// Forward declaration to avoid circular dependency
+// Forward declarations to avoid circular dependencies
 class UIManager;
+class GrindController;
 
 // Callback interface for UI status updates
 using UIStatusCallback = std::function<void(const char*)>;
@@ -104,15 +105,30 @@ private:
     
     // UI status callback
     UIStatusCallback ui_status_callback;
+
+    // For the OTA lockout: updates are only accepted while the grind controller
+    // is IDLE (an OTA mid-grind suspends the grind-control task with the motor on)
+    GrindController* grind_controller_ = nullptr;
     
     // Queue to marshal UI status messages to UI task context
     QueueHandle_t ui_status_queue;
+
+    // Lifecycle request queue: enable/disable requested from the UI task execute
+    // on the Bluetooth task (drained in handle()). The BLE stack must never be
+    // initialized or torn down from the LVGL/UI task context.
+    struct LifecycleRequest {
+        bool enable;                 // true = enable, false = disable
+        unsigned long timeout_ms;    // enable only; 0 = default
+    };
+    QueueHandle_t lifecycle_queue;
+    volatile bool lifecycle_busy_;   // True from request until the op completes
 
     // Diagnostics report control flags
     bool diagnostic_report_pending;
     bool diagnostic_report_in_progress;
 
     // Private methods
+    void process_lifecycle_requests();
     void update_ui_status(const char* status);
     void enqueue_ui_status(const char* status);
     void set_ota_status(BLEOTAStatus status);
@@ -145,20 +161,31 @@ public:
     void init(Preferences* prefs);
     
     /**
-     * Enable BLE and start advertising
+     * Enable BLE and start advertising.
+     * ONLY call from the Bluetooth task (or single-threaded boot, before the task
+     * architecture starts). From the UI, use request_enable() instead.
      * @param timeout_ms Optional timeout in milliseconds (defaults to BLE_AUTO_DISABLE_TIMEOUT_MS)
      */
     void enable(unsigned long timeout_ms = 0);
-    
+
     /**
      * Enable BLE during bootup with shorter timeout
      */
     void enable_during_bootup();
-    
+
     /**
-     * Disable BLE and cleanup
+     * Disable BLE and cleanup.
+     * ONLY call from the Bluetooth task; from the UI, use request_disable().
      */
     void disable();
+
+    /**
+     * Thread-safe lifecycle requests: post enable/disable for the Bluetooth task
+     * to execute. Poll is_lifecycle_pending() to know when the operation finished.
+     */
+    void request_enable(unsigned long timeout_ms = 0);
+    void request_disable();
+    bool is_lifecycle_pending() const { return lifecycle_busy_; }
     
     /**
      * Handle periodic updates (call from main loop)
@@ -209,6 +236,11 @@ public:
      * Set UI status callback
      */
     void set_ui_status_callback(UIStatusCallback callback);
+
+    /**
+     * Wire the grind controller so OTA can be locked out unless grinding is IDLE
+     */
+    void set_grind_controller(GrindController* controller) { grind_controller_ = controller; }
     
     /**
      * Update all system information characteristics

@@ -64,6 +64,7 @@ void MenuUIController::register_events() {
     EventBridgeLVGL::register_handler(ET::SCREENSAVER_OFF_TIMEOUT_SLIDER, [this](lv_event_t*) { handle_screensaver_off_timeout_slider(); });
     EventBridgeLVGL::register_handler(ET::SCREENSAVER_OFF_TIMEOUT_SLIDER_RELEASED, [this](lv_event_t*) { handle_screensaver_off_timeout_slider_released(); });
     EventBridgeLVGL::register_handler(ET::SCREENSAVER_MODE_RADIO_BUTTON, [this](lv_event_t*) { handle_screensaver_mode_radio_button(); });
+    EventBridgeLVGL::register_handler(ET::PROGRESS_STYLE_RADIO_BUTTON, [this](lv_event_t*) { handle_progress_style_radio_button(); });
 
     // Note: Event registration for menu widgets is done in the page creation functions
     // (menu_screen.cpp) because the menu is created lazily and destroyed on hide.
@@ -214,24 +215,58 @@ void MenuUIController::handle_ble_toggle() {
     if (!ui_manager_ || !ui_manager_->bluetooth_manager) return;
 
     auto* ble = ui_manager_->bluetooth_manager;
-    if (ble->is_enabled()) {
-        ble->disable();
-        LOG_DEBUG_PRINTLN("Bluetooth disabled by user");
+    if (ble->is_lifecycle_pending()) {
+        // An enable/disable is already in flight - keep the toggle honest and wait
         ui_manager_->menu_screen.update_ble_status();
         return;
     }
 
-    auto completion = [this]() {
-        ui_manager_->menu_screen.update_ble_status();
-    };
-
-    auto operation = [ble]() {
-        ble->enable();
-        LOG_DEBUG_PRINTLN("Bluetooth enabled by user (30 minute timeout)");
-    };
-
+    // The BLE stack must never be initialized/torn down on the UI task (long
+    // blocking init, and NimBLE lifecycle isn't safe from LVGL context). Post the
+    // request to the Bluetooth task and poll for completion behind an overlay.
     auto& overlay = BlockingOperationOverlay::getInstance();
-    overlay.show_and_execute(BlockingOperation::BLE_ENABLING, operation, completion);
+    if (ble->is_enabled()) {
+        LOG_DEBUG_PRINTLN("Bluetooth disable requested by user");
+        overlay.show("DISABLING BLUETOOTH");
+        ble->request_disable();
+    } else {
+        LOG_DEBUG_PRINTLN("Bluetooth enable requested by user (30 minute timeout)");
+        overlay.show("ENABLING BLUETOOTH");
+        ble->request_enable();
+    }
+    start_ble_poll_timer();
+}
+
+void MenuUIController::start_ble_poll_timer() {
+    stop_ble_poll_timer();
+    ble_poll_started_ms_ = millis();
+    ble_poll_timer_ = lv_timer_create(static_ble_poll_timer_cb, 100, this);
+}
+
+void MenuUIController::stop_ble_poll_timer() {
+    if (ble_poll_timer_) {
+        lv_timer_del(ble_poll_timer_);
+        ble_poll_timer_ = nullptr;
+    }
+}
+
+void MenuUIController::static_ble_poll_timer_cb(lv_timer_t* timer) {
+    auto* self = static_cast<MenuUIController*>(lv_timer_get_user_data(timer));
+    if (!self || !self->ui_manager_ || !self->ui_manager_->bluetooth_manager) return;
+
+    auto* ble = self->ui_manager_->bluetooth_manager;
+    bool done = !ble->is_lifecycle_pending();
+    // Safety net: never leave the overlay stuck if the Bluetooth task stalls
+    bool timed_out = (millis() - self->ble_poll_started_ms_) > 15000;
+
+    if (done || timed_out) {
+        if (timed_out && !done) {
+            LOG_DEBUG_PRINTLN("WARNING: BLE lifecycle poll timed out");
+        }
+        BlockingOperationOverlay::getInstance().hide();
+        self->ui_manager_->menu_screen.update_ble_status();
+        self->stop_ble_poll_timer();
+    }
 }
 
 void MenuUIController::handle_ble_startup_toggle() {
@@ -631,6 +666,32 @@ void MenuUIController::handle_screensaver_mode_radio_button() {
 
     LOG_DEBUG_PRINTLN(mode == USER_SCREEN_SAVER_MODE_LOGO ? "Screensaver mode: Logo"
                                                           : "Screensaver mode: Dim");
+}
+
+void MenuUIController::handle_progress_style_radio_button() {
+    if (!ui_manager_) return;
+
+    auto* radio_group = ui_manager_->menu_screen.get_progress_style_radio_group();
+    if (!radio_group) return;
+
+    int selected_index = radio_button_group_get_selection(radio_group);
+    if (selected_index < 0) return;
+
+    int style = (selected_index == USER_PROGRESS_STYLE_EDGE) ? USER_PROGRESS_STYLE_EDGE
+                                                             : USER_PROGRESS_STYLE_STANDARD;
+
+    // Same "grinder" namespace/instance that GrindingScreen reads at boot
+    auto* hardware = ui_manager_->get_hardware_manager();
+    Preferences* prefs = hardware ? hardware->get_preferences() : nullptr;
+    if (prefs) {
+        prefs->putInt("prog_style", style);
+    }
+
+    // Apply immediately so the next grind uses the new style without a reboot
+    ui_manager_->grinding_screen.set_progress_style(style);
+
+    LOG_DEBUG_PRINTLN(style == USER_PROGRESS_STYLE_EDGE ? "Grind progress style: Edge"
+                                                        : "Grind progress style: Standard");
 }
 
 void MenuUIController::perform_factory_reset() {

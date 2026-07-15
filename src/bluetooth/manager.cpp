@@ -52,6 +52,8 @@ BluetoothManager::BluetoothManager()
     , last_session_storage_version(0)
     , last_reported_export_state(false)
     , ui_status_queue(nullptr)
+    , lifecycle_queue(nullptr)
+    , lifecycle_busy_(false)
     , diagnostic_report_pending(false)
     , diagnostic_report_in_progress(false) {
 }
@@ -66,6 +68,50 @@ void BluetoothManager::init(Preferences* prefs) {
     // Create UI status queue to marshal UI updates to UI task
     if (!ui_status_queue) {
         ui_status_queue = xQueueCreate(8, sizeof(UIStatusMessage));
+    }
+    // Create lifecycle queue so UI-requested enable/disable run on the Bluetooth task
+    if (!lifecycle_queue) {
+        lifecycle_queue = xQueueCreate(4, sizeof(LifecycleRequest));
+    }
+}
+
+void BluetoothManager::request_enable(unsigned long timeout_ms) {
+    if (!lifecycle_queue) return;
+    LifecycleRequest req = { true, timeout_ms };
+    lifecycle_busy_ = true;
+    if (xQueueSend(lifecycle_queue, &req, 0) != pdPASS) {
+        log("Bluetooth: Lifecycle queue full, enable request dropped\n");
+        lifecycle_busy_ = false;
+    }
+}
+
+void BluetoothManager::request_disable() {
+    if (!lifecycle_queue) return;
+    LifecycleRequest req = { false, 0 };
+    lifecycle_busy_ = true;
+    if (xQueueSend(lifecycle_queue, &req, 0) != pdPASS) {
+        log("Bluetooth: Lifecycle queue full, disable request dropped\n");
+        lifecycle_busy_ = false;
+    }
+}
+
+void BluetoothManager::process_lifecycle_requests() {
+    if (!lifecycle_queue) return;
+    LifecycleRequest req;
+    bool processed = false;
+    while (xQueueReceive(lifecycle_queue, &req, 0) == pdPASS) {
+        if (req.enable) {
+            enable(req.timeout_ms);
+        } else {
+            disable();
+        }
+        processed = true;
+    }
+    // Clear busy only after actually completing work, and only if no new request
+    // arrived meanwhile - so is_lifecycle_pending() never reads false while a
+    // request is still queued or in flight.
+    if (processed && uxQueueMessagesWaiting(lifecycle_queue) == 0) {
+        lifecycle_busy_ = false;
     }
 }
 
@@ -117,9 +163,15 @@ void BluetoothManager::enable(unsigned long timeout_ms) {
     enable_time = millis();
     last_disconnect_time = enable_time; // Start disconnected timeout from enable time
     
-    // Initialize BLE with delays for power stability
-    BLEDevice::init(BLE_DEVICE_NAME);
-    
+    // Initialize BLE with delays for power stability. A failed init (e.g. the
+    // controller could not allocate its internal-heap arena) must abort cleanly -
+    // continuing to build services and start the host on a dead port crashes.
+    if (!BLEDevice::init(BLE_DEVICE_NAME)) {
+        log("Bluetooth: ERROR - BLE stack init failed, staying disabled (reboot to retry)\n");
+        ota_handler.restore_normal_power_mode();
+        return;
+    }
+
     // Request a larger MTU to improve throughput when the client supports it.
     // Some platforms (e.g., macOS/iOS) may ignore this request and keep a lower MTU.
     // That's fine — we also keep chunk sizes small and paced below.
@@ -339,6 +391,9 @@ void BluetoothManager::disable() {
 }
 
 void BluetoothManager::handle() {
+    // Execute UI-requested enable/disable here, on the Bluetooth task
+    process_lifecycle_requests();
+
     if (!ble_enabled) return;
 
     // Reconcile the cached connection flag with the real GAP state. A failed or
@@ -700,6 +755,14 @@ void BluetoothManager::handle_ota_control_command(BLECharacteristic* characteris
     
     switch (command) {
         case BLE_OTA_CMD_START:
+            // OTA lockout: never accept an update unless the grind controller is
+            // IDLE. start_ota() suspends the grind-control task - mid-grind that
+            // would freeze the control loop with the motor running and no failsafes.
+            if (grind_controller_ && grind_controller_->is_active()) {
+                log("Bluetooth OTA: REJECTED - grind in progress, retry when idle\n");
+                set_ota_status(BLE_OTA_ERROR);
+                break;
+            }
             // New protocol: [CMD][patch_size:4][is_full_update:1][build_number_length:1][build_number:N]
             if (data.length() >= 6) {  // 1 + 4 + 1 bytes minimum (cmd + patch_size + full_update_flag)
                 uint32_t patch_size = *(uint32_t*)(data.c_str() + 1);
