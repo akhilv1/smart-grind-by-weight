@@ -142,10 +142,6 @@ Instead of a single sleep timeout, the screensaver now steps down in two indepen
 
 Both timeouts use discrete steps from 15 seconds to 30 minutes, plus **Never** to disable a stage. Any touch or weight activity restores the screen instantly, and the screensaver never engages while a grind is in progress. Settings are cached in RAM and refreshed on change, so nothing polls flash storage every UI tick.
 
-### Edge progress ring (Apple Watch style)
-
-Menu → Display → **Grind Progress** offers two styles for the arc grind view: the classic centered arc (**Standard**), or **Edge** — a ring that traces the outer border of the screen (rounded-rect path hugging the display edge) and sweeps clockwise from top-center as the grind progresses. The big weight readout stays centered either way, and the ring never intercepts touch.
-
 ---
 
 ## Build System & OTA Tooling

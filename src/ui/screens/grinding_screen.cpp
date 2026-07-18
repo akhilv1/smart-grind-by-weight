@@ -56,9 +56,6 @@ void GrindingScreen::create() {
     chart_screen.create();
     arc_screen.set_time_mode(current_mode == GrindMode::TIME);
     chart_screen.set_time_mode(current_mode == GrindMode::TIME);
-    if (preferences) {
-        arc_screen.set_progress_style(preferences->getInt("prog_style", USER_PROGRESS_STYLE_DEFAULT));
-    }
     
     // Hide the inactive screen initially
     if (current_layout == GrindScreenLayout::NERDY_CHART) {
@@ -135,8 +132,4 @@ void GrindingScreen::set_mode(GrindMode mode) {
     bool time_enabled = (mode == GrindMode::TIME);
     arc_screen.set_time_mode(time_enabled);
     chart_screen.set_time_mode(time_enabled);
-}
-
-void GrindingScreen::set_progress_style(int style) {
-    arc_screen.set_progress_style(style);
 }
