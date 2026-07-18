@@ -50,7 +50,6 @@ python3 tools/grinder.py analyze
 
 **Display / Screensaver:** Configurable through Menu → Display page — two-stage screensaver
 - **Brightness**: Normal brightness slider (min 15%).
-- **Grind Progress style**: Radio buttons for **Standard** (centered arc) or **Edge** (Apple Watch style ring tracing the outer screen border, drawn by `src/ui/components/edge_progress_ring.*`; the centered weight readout stays, only the arc stroke goes invisible). Pref `prog_style` (int: 0=Standard, 1=Edge) in the "grinder" namespace, applied instantly. Applies to the arc grind layout only.
 - **Screensaver style**: Radio buttons for **Dim** (dims the current screen) or **Logo** (boot logo centered on opaque black, at the dimmed brightness). Style applies to stage 1.
 - **Dim after / Off after**: Two timeout sliders with discrete steps (15s, 30s, 1/2/5/10/15/30 min, **Never**); steps live in `screensaver_timeout_steps.h`. Stage 1 (dim/logo) at "Dim after" (default 1 min); stage 2 (backlight fully off) at "Off after" (default 5 min). "Never" disables that stage.
 - **Behavior**: `ScreenTimeoutController` caches the timeouts/mode (refreshed on change via `UIManager::refresh_screensaver_settings()`, never polling NVS per tick) and steps ACTIVE → DIMMED → OFF on inactivity; touch/weight activity restores normal brightness and deletes the logo overlay (created lazily on engage). Never engages during grinding.
