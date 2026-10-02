@@ -454,6 +454,17 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
     create_description_label(parent, "Exit the completion screen once that cup weight drops away.");
     create_toggle_row(parent, "Return", &auto_return_toggle);
 
+    // Portafilters learned by the AUTO home tab
+    create_separator(parent, "Portafilters");
+    create_description_label(parent, "AUTO learns each portafilter's weight as you use it. Tap one to forget it.");
+    portafilter_list = lv_obj_create(parent);
+    lv_obj_remove_style_all(portafilter_list);
+    lv_obj_set_size(portafilter_list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_layout(portafilter_list, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(portafilter_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(portafilter_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_clear_flag(portafilter_list, LV_OBJ_FLAG_SCROLLABLE);
+
     // Pulse corrections section
     create_separator(parent, "Corrections");
     create_description_label(parent, "Top off with short pulses after the predictive grind. Needs a scale that settles cleanly; turn off on a noisy load cell.");
@@ -670,6 +681,7 @@ void MenuScreen::show() {
     update_bluetooth_startup_toggle();
     update_logging_toggle();
     update_grind_mode_toggles();
+    update_portafilter_list();
 
     LOG_BLE("[%lums MENU] Menu screen shown successfully\n", millis());
 }
@@ -1330,4 +1342,56 @@ void MenuScreen::update_grind_mode_toggles() {
     }
 
     update_grind_freshness_hours_label(freshness_hours);
+}
+
+void MenuScreen::update_portafilter_list() {
+    if (!portafilter_list) {
+        return;
+    }
+    lv_obj_clean(portafilter_list);
+
+    const int count = portafilter_detector ? portafilter_detector->cluster_count() : 0;
+    if (count == 0) {
+        create_description_label(portafilter_list, "None yet. Place a portafilter on the AUTO tab to teach it.");
+        return;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const PortafilterCluster& cluster = portafilter_detector->cluster(i);
+
+        lv_obj_t* row = lv_obj_create(portafilter_list);
+        style_as_button(row, 260, LV_SIZE_CONTENT, &lv_font_montserrat_24);
+        lv_obj_set_style_margin_bottom(row, 10, 0);
+        lv_obj_set_style_pad_ver(row, 14, 0);
+        lv_obj_set_layout(row, LV_LAYOUT_FLEX);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_user_data(row, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+
+        lv_obj_t* text_column = lv_obj_create(row);
+        lv_obj_remove_style_all(text_column);
+        lv_obj_set_size(text_column, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_layout(text_column, LV_LAYOUT_FLEX);
+        lv_obj_set_flex_flow(text_column, LV_FLEX_FLOW_COLUMN);
+        lv_obj_clear_flag(text_column, LV_OBJ_FLAG_CLICKABLE);
+
+        const bool is_double = cluster.shot_type == static_cast<uint8_t>(ShotType::DOUBLE);
+        lv_obj_t* name_label = lv_label_create(text_column);
+        lv_label_set_text_fmt(name_label, "%s  %.1fg", is_double ? "Double" : "Single",
+                              static_cast<double>(cluster.mean_g));
+
+        lv_obj_t* detail_label = lv_label_create(text_column);
+        lv_label_set_text_fmt(detail_label, "+/-%.2fg, %u grinds",
+                              static_cast<double>(portafilter_detector->cluster_sigma(i)),
+                              static_cast<unsigned>(cluster.count));
+        lv_obj_set_style_text_color(detail_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
+
+        lv_obj_t* trash = lv_label_create(row);
+        lv_label_set_text(trash, LV_SYMBOL_TRASH);
+        lv_obj_set_style_text_color(trash, lv_color_hex(THEME_COLOR_ERROR), 0);
+
+        lv_obj_add_event_cb(row, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                            reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::PORTAFILTER_FORGET)));
+    }
 }

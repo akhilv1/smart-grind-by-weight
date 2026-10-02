@@ -982,7 +982,13 @@ void GrindController::ui_acknowledge_phase_transition() {
     }
 }
 
-void GrindController::emit_ui_event(const GrindEventData& data) {
+void GrindController::emit_ui_event(const GrindEventData& event) {
+    // Stamp events at emit time so the UI charts by sample time, not by queue drain time
+    GrindEventData data = event;
+    if (data.sample_time_ms == 0) {
+        data.sample_time_ms = millis();
+    }
+
     // Thread-safe Core 0 → Core 1 UI event emission using FreeRTOS queue
     if (ui_event_queue) {
         BaseType_t result = xQueueSend(ui_event_queue, &data, 0); // 0 = no wait (non-blocking)
@@ -1027,6 +1033,7 @@ void GrindController::emit_progress_update(const GrindLoopData& loop_data) {
     progress_event.phase_display_text = get_phase_name();
     progress_event.show_taring_text = show_taring_text();
     progress_event.flow_rate = loop_data.flow_rate;
+    progress_event.sample_time_ms = loop_data.now;
     emit_ui_event(progress_event);
 }
 

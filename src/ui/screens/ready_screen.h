@@ -5,8 +5,7 @@
 
 class ReadyScreen {
 public:
-    static constexpr int kTabCount = 5;     // Single, Double, Custom, MENU, Scale
-    static constexpr int kScaleTabIndex = 4;
+    static constexpr int kTabCount = 6;     // AUTO, Single, Double, Custom, MENU, Scale
 
 private:
     lv_obj_t* screen;
@@ -15,6 +14,10 @@ private:
     lv_obj_t* weight_labels[3];
     lv_obj_t* menu_tab;
     lv_obj_t* scale_tab;
+    lv_obj_t* auto_tab;
+    lv_obj_t* auto_value_label;
+    lv_obj_t* auto_status_label;
+    lv_obj_t* auto_label_buttons[2];   // SINGLE / DOUBLE (shown when asking the user to label)
     lv_obj_t* scale_weight_label;
     lv_obj_t* scale_tare_button;
     lv_obj_t* scale_grind_button;
@@ -34,6 +37,8 @@ public:
     void set_profile_long_press_handler(lv_event_cb_t handler);
     void update_scale_weight(float weight);
     void update_page_dots(int active_index);
+    // AUTO tab: big value line, status line underneath, and whether to ask SINGLE/DOUBLE
+    void update_auto_page(const char* value_text, const char* status_text, bool ask_label);
 
     bool is_visible() const { return visible; }
     lv_obj_t* get_screen() const { return screen; }
@@ -41,10 +46,12 @@ public:
     lv_obj_t* get_menu_tab() const { return menu_tab; }
     lv_obj_t* get_scale_tare_button() const { return scale_tare_button; }
     lv_obj_t* get_scale_grind_button() const { return scale_grind_button; }
+    lv_obj_t* get_auto_label_button(int shot_index) const { return auto_label_buttons[shot_index]; }
 
 private:
     void create_profile_page(lv_obj_t* parent, int profile_index, const char* profile_name, float weight);
     void create_menu_page(lv_obj_t* parent);
     void create_scale_page(lv_obj_t* parent);
+    void create_auto_page(lv_obj_t* parent);
     void create_page_dots();
 };

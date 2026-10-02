@@ -58,6 +58,9 @@ public:
         CONFIRM_CANCEL,
         PURGE_CONFIRM_CONTINUE,
         MENUBAR_BACK,
+        AUTO_LABEL_SINGLE,
+        AUTO_LABEL_DOUBLE,
+        PORTAFILTER_FORGET,
         COUNT
     };
 

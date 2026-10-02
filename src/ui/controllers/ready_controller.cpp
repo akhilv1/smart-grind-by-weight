@@ -39,6 +39,11 @@ void ReadyUIController::refresh_profiles() {
         values[i] = get_profile_target(*ui_manager_->profile_controller, ui_manager_->current_mode, i);
     }
     ui_manager_->ready_screen.update_profile_values(values, ui_manager_->current_mode);
+
+    // AUTO shows the detected profile's target, which depends on the grind mode too
+    if (ui_manager_->auto_mode_controller_) {
+        ui_manager_->auto_mode_controller_->refresh_display();
+    }
 }
 
 void ReadyUIController::handle_tab_change(int tab) {
@@ -47,9 +52,14 @@ void ReadyUIController::handle_tab_change(int tab) {
     }
 
     ui_manager_->current_tab = tab;
-    if (ui_manager_->profile_controller && tab < 3) {
-        ui_manager_->profile_controller->set_current_profile(tab);
+    if (ui_manager_->profile_controller && UIManager::is_profile_tab(tab)) {
+        ui_manager_->profile_controller->set_current_profile(UIManager::profile_for_tab(tab));
         refresh_profiles();
+    }
+    ui_manager_->save_home_tab(tab);
+
+    if (ui_manager_->auto_mode_controller_) {
+        ui_manager_->auto_mode_controller_->on_tab_changed(tab);
     }
 
     // Leaving the Scale tab must always stop a held manual grind
@@ -69,7 +79,8 @@ void ReadyUIController::handle_profile_long_press() {
         return;
     }
 
-    if (!ui_manager_->state_machine->is_state(UIState::READY) || ui_manager_->current_tab >= 3) {
+    if (!ui_manager_->state_machine->is_state(UIState::READY) ||
+        !UIManager::is_profile_tab(ui_manager_->current_tab)) {
         return;
     }
 
@@ -83,7 +94,7 @@ void ReadyUIController::handle_profile_long_press() {
 }
 
 void ReadyUIController::toggle_mode() {
-    if (!ui_manager_ || ui_manager_->current_tab >= 3) {
+    if (!ui_manager_ || !UIManager::is_grind_tab(ui_manager_->current_tab)) {
         return;
     }
 

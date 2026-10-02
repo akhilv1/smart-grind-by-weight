@@ -27,6 +27,7 @@
 #include "controllers/ready_controller.h"
 #include "controllers/screen_timeout_controller.h"
 #include "controllers/menu_controller.h"
+#include "controllers/auto_mode_controller.h"
 #include "controllers/status_indicator_controller.h"
 #include "../system/state_machine.h"
 #include "../system/diagnostics_controller.h"
@@ -62,6 +63,7 @@ class UIManager {
     friend class OtaDataExportController;
     friend class ScreenTimeoutController;
     friend class JogAdjustController;
+    friend class AutoModeController;
     
 private:
     HardwareManager* hardware_manager;
@@ -98,6 +100,7 @@ private:
     std::unique_ptr<ScreenTimeoutController> screen_timeout_controller_;
     std::unique_ptr<JogAdjustController> jog_adjust_controller_;
     std::unique_ptr<DiagnosticsController> diagnostics_controller_;
+    std::unique_ptr<AutoModeController> auto_mode_controller_;
 
 public:
     BootScreen boot_screen;
@@ -113,9 +116,19 @@ public:
     OtaUpdateFailedScreen ota_update_failed_screen;
 
     // Home-screen swipe tab indices (ready_screen tabview order)
-    static constexpr int kMenuTabIndex = 3;   // "MENU" tab
-    static constexpr int kScaleTabIndex = 4;  // "Scale" tab (swipe past MENU)
-    static constexpr int kHomeTabCount = 5;   // Single, Double, Custom, MENU, Scale
+    static constexpr int kAutoTabIndex = 0;          // "AUTO" tab (portafilter auto-detect)
+    static constexpr int kFirstProfileTabIndex = 1;  // Single, Double, Custom follow AUTO
+    static constexpr int kMenuTabIndex = kFirstProfileTabIndex + USER_PROFILE_COUNT;  // "MENU" tab
+    static constexpr int kScaleTabIndex = kMenuTabIndex + 1;  // "Scale" tab (swipe past MENU)
+    static constexpr int kHomeTabCount = kScaleTabIndex + 1;  // AUTO, Single, Double, Custom, MENU, Scale
+
+    static constexpr bool is_profile_tab(int tab) {
+        return tab >= kFirstProfileTabIndex && tab < kFirstProfileTabIndex + USER_PROFILE_COUNT;
+    }
+    // Tabs that grind (AUTO picks the profile itself)
+    static constexpr bool is_grind_tab(int tab) { return tab == kAutoTabIndex || is_profile_tab(tab); }
+    static constexpr int profile_for_tab(int tab) { return tab - kFirstProfileTabIndex; }
+    static constexpr int tab_for_profile(int profile) { return profile + kFirstProfileTabIndex; }
 
     ~UIManager();
     void init(HardwareManager* hw_mgr, StateMachine* sm,
@@ -137,6 +150,7 @@ public:
     HardwareManager* get_hardware_manager() { return hardware_manager; }
     GrindController* get_grind_controller() { return grind_controller; }
     OtaDataExportController* get_ota_data_export_controller() { return ota_data_export_controller_.get(); }
+    AutoModeController* get_auto_mode_controller() { return auto_mode_controller_.get(); }
     void set_current_tab(int tab) { current_tab = tab; }
     
     void set_background_active(bool active);
@@ -157,6 +171,9 @@ public:
 private:
     void create_ui();
     void update_auto_actions();
+    int load_home_tab() const;
+    void save_home_tab(int tab);
+    static constexpr const char* kPrefKeyAutoHome = "auto_home";
 
     // Boot splash sequence (runs in the UI task while background init completes)
     void update_boot_sequence();
