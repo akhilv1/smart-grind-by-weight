@@ -26,6 +26,7 @@ const char* StateMachine::get_state_name(UIState state) const {
         case UIState::CONFIRM: return "CONFIRM";
         case UIState::PURGE_CONFIRM: return "PURGE_CONFIRM";
         case UIState::AUTOTUNING: return "AUTOTUNING";
+        case UIState::PORTAFILTER_LEARN: return "PORTAFILTER_LEARN";
         case UIState::OTA_UPDATE: return "OTA_UPDATE";
         case UIState::OTA_UPDATE_FAILED: return "OTA_UPDATE_FAILED";
         default: return "UNKNOWN";

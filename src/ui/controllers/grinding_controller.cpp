@@ -144,6 +144,7 @@ void GrindingUIController::on_state_changed(UIState new_state) {
             break;
         case UIState::MENU:
         case UIState::CALIBRATION:
+        case UIState::PORTAFILTER_LEARN:
         case UIState::CONFIRM:
         case UIState::OTA_UPDATE:
         case UIState::OTA_UPDATE_FAILED:
@@ -203,7 +204,7 @@ void GrindingUIController::handle_grind_button() {
             ui_manager_->grind_controller->stop_grind();
         }
     } else if (ui_manager_->state_machine->is_state(UIState::READY)) {
-        if (ui_manager_->current_tab == 3) {
+        if (ui_manager_->current_tab == UIManager::kMenuTabIndex) {
             ui_manager_->switch_to_state(UIState::MENU);
             return;
         }
@@ -493,7 +494,7 @@ void GrindingUIController::handle_grind_event(const GrindEventData& event_data) 
                     event_data.phase != GrindPhase::SETUP && event_data.phase != GrindPhase::COMPLETED &&
                     event_data.phase != GrindPhase::TIMEOUT && event_data.phase != GrindPhase::TIME_ADDITIONAL_PULSE &&
                     event_data.phase != GrindPhase::PURGE_CONFIRM && event_data.phase != GrindPhase::HOPPER_REFILL) {
-                    ui_manager_->grinding_screen.add_chart_data_point(event_data.current_weight, event_data.flow_rate, millis());
+                    ui_manager_->grinding_screen.add_chart_data_point(event_data.current_weight, event_data.flow_rate, event_data.sample_time_ms);
                 }
             }
             break;
@@ -513,7 +514,7 @@ void GrindingUIController::handle_grind_event(const GrindEventData& event_data) 
                     event_data.phase != GrindPhase::SETUP && event_data.phase != GrindPhase::COMPLETED &&
                     event_data.phase != GrindPhase::TIMEOUT && event_data.phase != GrindPhase::TIME_ADDITIONAL_PULSE &&
                     event_data.phase != GrindPhase::PURGE_CONFIRM && event_data.phase != GrindPhase::HOPPER_REFILL) {
-                    ui_manager_->grinding_screen.add_chart_data_point(event_data.current_weight, event_data.flow_rate, millis());
+                    ui_manager_->grinding_screen.add_chart_data_point(event_data.current_weight, event_data.flow_rate, event_data.sample_time_ms);
                 }
             }
             break;
@@ -636,7 +637,13 @@ void GrindingUIController::enter_edit_state() {
 
 void GrindingUIController::enter_grinding_state() {
     WeightSensor* weight_sensor = ui_manager_->hardware_manager->get_weight_sensor();
-    ui_manager_->grinding_screen.reset_chart_data();
+    // Resuming from a hopper-refill pause continues the same session, so keep its
+    // chart history (the chart cuts the paused time out of its timeline)
+    const bool resuming_from_refill = ui_manager_->grind_controller &&
+                                      ui_manager_->grind_controller->is_awaiting_refill();
+    if (!resuming_from_refill) {
+        ui_manager_->grinding_screen.reset_chart_data();
+    }
     ui_manager_->grinding_screen.update_profile_name(ui_manager_->profile_controller->get_current_name());
     ui_manager_->grinding_screen.set_mode(ui_manager_->current_mode);
     chart_updates_enabled_ = true;

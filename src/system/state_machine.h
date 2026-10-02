@@ -12,6 +12,7 @@ enum class UIState {
     CONFIRM,
     PURGE_CONFIRM,
     AUTOTUNING,
+    PORTAFILTER_LEARN,
     OTA_UPDATE,
     OTA_UPDATE_FAILED
 };

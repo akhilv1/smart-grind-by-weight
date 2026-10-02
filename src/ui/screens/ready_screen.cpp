@@ -50,6 +50,9 @@ void ReadyScreen::create() {
     // Transparent background
     lv_obj_set_style_bg_opa(tabview, LV_OPA_TRANSP, 0);
 
+    // AUTO first: it detects the portafilter and grinds the matching profile
+    auto_tab = lv_tabview_add_tab(tabview, "Auto");
+
     // Add profile tabs
     profile_tabs[0] = lv_tabview_add_tab(tabview, "Single");
     profile_tabs[1] = lv_tabview_add_tab(tabview, "Double");
@@ -65,6 +68,8 @@ void ReadyScreen::create() {
     for (int i = 0; i < 3; i++) {
         create_profile_page(profile_tabs[i], i, names[i], default_weights[i]);
     }
+
+    create_auto_page(auto_tab);
 
     // Create menu tab page
     create_menu_page(menu_tab);
@@ -108,6 +113,111 @@ void ReadyScreen::create_profile_page(lv_obj_t* parent, int profile_index, const
     profile_action_buttons[profile_index] =
         add_tab_action_button(parent, LV_SYMBOL_PLAY, THEME_COLOR_PRIMARY,
                               EventBridgeLVGL::EventType::GRIND_BUTTON);
+}
+
+void ReadyScreen::create_auto_page(lv_obj_t* parent) {
+    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(parent, 0, 0);
+    lv_obj_set_style_pad_bottom(parent, 16, 0);
+    lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Same spacer / label / bottom-row structure as the profile pages so AUTO lines up with them
+    lv_obj_t* top_spacer = lv_obj_create(parent);
+    lv_obj_remove_style_all(top_spacer);
+    lv_obj_set_width(top_spacer, LV_PCT(100));
+    lv_obj_set_flex_grow(top_spacer, 1);
+
+    lv_obj_t* name_label;
+    (void)create_profile_label(parent, &name_label, &auto_value_label);
+    lv_label_set_text(name_label, "AUTO");
+    lv_label_set_text(auto_value_label, "--");
+
+    // Long-press anywhere on the page (not its buttons) opens Learn Portafilters
+    lv_obj_add_event_cb(parent, EventBridgeLVGL::dispatch_event, LV_EVENT_LONG_PRESSED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::AUTO_LONG_PRESS)));
+
+    auto_status_label = lv_label_create(parent);
+    lv_label_set_long_mode(auto_status_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(auto_status_label, LV_PCT(90));
+    lv_obj_set_style_text_font(auto_status_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(auto_status_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
+    lv_obj_set_style_text_align(auto_status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_top(auto_status_label, 6, 0);
+    lv_label_set_text(auto_status_label, "Place portafilter");
+
+    lv_obj_t* bottom_spacer = lv_obj_create(parent);
+    lv_obj_remove_style_all(bottom_spacer);
+    lv_obj_set_width(bottom_spacer, LV_PCT(100));
+    lv_obj_set_flex_grow(bottom_spacer, 1);
+
+    // Fixed-height row so the labels don't jump when the label buttons appear
+    lv_obj_t* button_row = lv_obj_create(parent);
+    lv_obj_remove_style_all(button_row);
+    lv_obj_set_size(button_row, LV_SIZE_CONTENT, 100);
+    lv_obj_clear_flag(button_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_layout(button_row, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(button_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(button_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(button_row, 20, 0);
+
+    using ET = EventBridgeLVGL::EventType;
+    const char* names[2] = {"SINGLE", "DOUBLE"};
+    const ET events[2] = {ET::AUTO_LABEL_SINGLE, ET::AUTO_LABEL_DOUBLE};
+    for (int i = 0; i < 2; i++) {
+        // Pill instead of a circle so the 24pt label fits
+        auto_label_buttons[i] = create_round_button(button_row, names[i], THEME_COLOR_PRIMARY);
+        lv_obj_set_size(auto_label_buttons[i], 120, 80);
+        lv_obj_add_event_cb(auto_label_buttons[i], EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                            reinterpret_cast<void*>(static_cast<intptr_t>(events[i])));
+        lv_obj_add_flag(auto_label_buttons[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    auto_start_button = create_round_button(button_row, LV_SYMBOL_PLAY, THEME_COLOR_PRIMARY);
+    lv_obj_add_event_cb(auto_start_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(ET::AUTO_START)));
+    lv_obj_add_flag(auto_start_button, LV_OBJ_FLAG_HIDDEN);
+
+    auto_swap_button = create_round_button(button_row, "", THEME_COLOR_NEUTRAL);
+    lv_obj_set_size(auto_swap_button, 120, 60);
+    auto_swap_label = lv_obj_get_child(auto_swap_button, 0);
+    lv_obj_add_event_cb(auto_swap_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(ET::AUTO_SWAP_GUESS)));
+    lv_obj_add_flag(auto_swap_button, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void set_visible(lv_obj_t* obj, bool visible) {
+    if (!obj) {
+        return;
+    }
+    if (visible) {
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void ReadyScreen::update_auto_page(const char* value_text, const char* status_text, AutoPageAction action,
+                                   const char* swap_text, uint32_t start_color) {
+    if (auto_value_label) {
+        lv_label_set_text(auto_value_label, value_text ? value_text : "");
+    }
+    if (auto_status_label) {
+        lv_label_set_text(auto_status_label, status_text ? status_text : "");
+    }
+
+    const bool ask = (action == AutoPageAction::ASK_LABEL);
+    const bool start = (action == AutoPageAction::START);
+    for (lv_obj_t* button : auto_label_buttons) {
+        set_visible(button, ask);
+    }
+    set_visible(auto_start_button, start);
+    set_visible(auto_swap_button, start);
+    if (start) {
+        lv_obj_set_style_bg_color(auto_start_button, lv_color_hex(start_color), 0);
+        lv_label_set_text(auto_swap_label, swap_text ? swap_text : "");
+    }
 }
 
 void ReadyScreen::create_menu_page(lv_obj_t* parent) {

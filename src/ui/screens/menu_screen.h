@@ -4,6 +4,7 @@
 #include "../../bluetooth/manager.h"
 #include "../../controllers/grind_controller.h"
 #include "../../system/diagnostics_controller.h"
+#include "../../controllers/portafilter_detector.h"
 #include "../ui_helpers.h"
 
 class GrindingScreen;  // Forward declaration
@@ -16,6 +17,7 @@ private:
     lv_obj_t* bluetooth_page;
     lv_obj_t* display_page;
     lv_obj_t* grind_mode_page;
+    lv_obj_t* auto_mode_page = nullptr;
     lv_obj_t* data_page;
     lv_obj_t* stats_page;
     lv_obj_t* diagnostics_page;
@@ -72,9 +74,13 @@ private:
     lv_obj_t* grinder_purge_amount_label;
     lv_obj_t* grind_freshness_hours_slider;
     lv_obj_t* grind_freshness_hours_label;
+    lv_obj_t* portafilter_list = nullptr;   // Rebuilt from the detector each time Settings opens
+    const PortafilterDetector* portafilter_detector = nullptr;
 
     // Tools entries
     lv_obj_t* cal_button;
+    lv_obj_t* learn_portafilters_button = nullptr;
+    lv_obj_t* auto_mode_auto_start_toggle = nullptr;
     lv_obj_t* motor_test_button;
     lv_obj_t* autotune_button;
 
@@ -126,6 +132,10 @@ public:
     void update_grind_mode_toggles();
     void update_grinder_purge_amount_label(float amount_g);
     void update_grind_freshness_hours_label(float hours);
+    void set_portafilter_detector(const PortafilterDetector* detector) { portafilter_detector = detector; }
+    void update_portafilter_list();
+    void update_auto_mode_toggles();
+    lv_obj_t* get_auto_mode_auto_start_toggle() const { return auto_mode_auto_start_toggle; }
 
     bool is_visible() const { return visible; }
     lv_obj_t* get_screen() const { return screen; }
@@ -161,6 +171,7 @@ private:
     void create_bluetooth_page(lv_obj_t* parent);
     void create_display_page(lv_obj_t* parent);
     void create_grind_mode_page(lv_obj_t* parent);
+    void create_auto_mode_page(lv_obj_t* parent);
     void create_data_page(lv_obj_t* parent);
     void create_stats_page(lv_obj_t* parent);
     void create_diagnostics_page(lv_obj_t* parent);

@@ -34,6 +34,25 @@ void MenuUIController::register_events() {
     EventBridgeLVGL::register_handler(ET::MENU_CALIBRATE, [this](lv_event_t*) { handle_calibrate(); });
     EventBridgeLVGL::register_handler(ET::MENU_RESET, [this](lv_event_t*) { handle_reset(); });
     EventBridgeLVGL::register_handler(ET::MENU_PURGE, [this](lv_event_t*) { handle_purge(); });
+    EventBridgeLVGL::register_handler(ET::PORTAFILTER_FORGET, [this](lv_event_t* e) { handle_portafilter_forget(e); });
+    EventBridgeLVGL::register_handler(ET::AUTO_MODE_AUTO_START_TOGGLE, [this](lv_event_t*) {
+        lv_obj_t* toggle = ui_manager_ ? ui_manager_->menu_screen.get_auto_mode_auto_start_toggle() : nullptr;
+        if (!toggle) return;
+        const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+        Preferences prefs;
+        prefs.begin("autogrind", false);
+        prefs.putBool(AutoModeController::kPrefKeyAutoStart, enabled);
+        prefs.end();
+        if (ui_manager_->auto_mode_controller_) {
+            ui_manager_->auto_mode_controller_->refresh_settings();
+        }
+        LOG_BLE("AUTO tab auto start %s\n", enabled ? "enabled" : "disabled");
+    });
+    EventBridgeLVGL::register_handler(ET::MENU_LEARN_PORTAFILTERS, [this](lv_event_t*) {
+        if (ui_manager_ && ui_manager_->portafilter_learn_controller_) {
+            ui_manager_->portafilter_learn_controller_->start();
+        }
+    });
     EventBridgeLVGL::register_handler(ET::MENU_MOTOR_TEST, [this](lv_event_t*) { handle_motor_test(); });
     EventBridgeLVGL::register_handler(ET::MENU_AUTOTUNE, [this](lv_event_t*) { handle_autotune(); });
     EventBridgeLVGL::register_handler(ET::MENU_DIAGNOSTIC_RESET, [this](lv_event_t*) { handle_diagnostics_reset(); });
@@ -109,6 +128,37 @@ void MenuUIController::handle_reset() {
     );
 }
 
+void MenuUIController::handle_portafilter_forget(lv_event_t* e) {
+    if (!ui_manager_ || !ui_manager_->auto_mode_controller_ || !e) return;
+
+    PortafilterDetector& detector = ui_manager_->auto_mode_controller_->detector();
+    lv_obj_t* row = lv_event_get_current_target_obj(e);
+    const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(row)));
+    if (index < 0 || index >= detector.cluster_count()) return;
+
+    const PortafilterCluster& cluster = detector.cluster(index);
+    static char message[128];
+    snprintf(message, sizeof(message),
+             "%s portafilter at %.1fg.\n\nAUTO will ask again the next time it sees this weight.",
+             cluster.shot_type == static_cast<uint8_t>(ShotType::DOUBLE) ? "Double" : "Single",
+             static_cast<double>(cluster.mean_g));
+
+    ui_manager_->show_confirmation(
+        "FORGET",
+        message,
+        "FORGET",
+        lv_color_hex(THEME_COLOR_ERROR),
+        [this, index]() {
+            if (ui_manager_ && ui_manager_->auto_mode_controller_) {
+                ui_manager_->auto_mode_controller_->detector().forget(index);
+            }
+            return_to_menu();
+        },
+        "CANCEL",
+        [this]() { return_to_menu(); }
+    );
+}
+
 void MenuUIController::handle_purge() {
     if (!ui_manager_) return;
 
@@ -165,7 +215,7 @@ void MenuUIController::handle_autotune() {
 
 void MenuUIController::handle_back() {
     if (!ui_manager_) return;
-    ui_manager_->set_current_tab(3);
+    ui_manager_->set_current_tab(UIManager::kMenuTabIndex);
     ui_manager_->switch_to_state(UIState::READY);
 }
 
@@ -731,7 +781,7 @@ void MenuUIController::run_motor_test() {
 
 void MenuUIController::return_to_menu() {
     if (!ui_manager_) return;
-    ui_manager_->set_current_tab(3);
+    ui_manager_->set_current_tab(UIManager::kMenuTabIndex);
     ui_manager_->switch_to_state(UIState::MENU);
 }
 

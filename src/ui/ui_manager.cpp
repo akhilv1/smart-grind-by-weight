@@ -48,7 +48,7 @@ void UIManager::init(HardwareManager* hw_mgr, StateMachine* sm,
     edit_target = 0.0f;
     original_target = 0.0f;
     calibration_weight = USER_CALIBRATION_REFERENCE_WEIGHT_G;
-    current_tab = profile_controller->get_current_profile();
+    current_tab = load_home_tab();
     current_mode = profile_controller->get_grind_mode();
     jog_timer = nullptr;
     // Initialize the unified overlay system
@@ -106,11 +106,13 @@ void UIManager::create_ui() {
     grinding_screen.init(hardware_manager->get_preferences());
     grinding_screen.create();
     grinding_screen.set_mode(current_mode);
+    menu_screen.set_portafilter_detector(auto_mode_controller_ ? &auto_mode_controller_->detector() : nullptr);
     menu_screen.create(bluetooth_manager, grind_controller, &grinding_screen, hardware_manager, diagnostics_controller_.get());
     calibration_screen.create();
     confirm_screen.create();
     purge_confirm_screen.create();
     autotune_screen.create();
+    portafilter_learn_screen.create();
     ota_screen.create();
     ota_update_failed_screen.create();
     
@@ -135,6 +137,7 @@ void UIManager::create_ui() {
     calibration_screen.hide();
     confirm_screen.hide();
     autotune_screen.hide();
+    portafilter_learn_screen.hide();
     ota_screen.hide();
     ota_update_failed_screen.hide();
     
@@ -198,6 +201,12 @@ void UIManager::update() {
             }
             break;
 
+        case UIState::PORTAFILTER_LEARN:
+            if (portafilter_learn_controller_) {
+                portafilter_learn_controller_->update();
+            }
+            break;
+
         case UIState::READY:
             if (ready_controller_) {
                 ready_controller_->update();
@@ -209,6 +218,9 @@ void UIManager::update() {
     }
 
     update_auto_actions();
+    if (auto_mode_controller_) {
+        auto_mode_controller_->update();
+    }
 
     if (grinding_controller_) {
         grinding_controller_->update(current);
@@ -336,6 +348,7 @@ void UIManager::switch_to_state(UIState new_state) {
     confirm_screen.hide();
     purge_confirm_screen.hide();
     autotune_screen.hide();
+    portafilter_learn_screen.hide();
     ota_screen.hide();
     ota_update_failed_screen.hide();
 
@@ -435,6 +448,10 @@ void UIManager::switch_to_state(UIState new_state) {
             autotune_screen.show();
             break;
 
+        case UIState::PORTAFILTER_LEARN:
+            portafilter_learn_screen.show();
+            break;
+
         case UIState::OTA_UPDATE:
             ota_screen.show();
             ota_screen.update_progress(0);
@@ -480,6 +497,7 @@ void UIManager::apply_menubar_for_state(UIState state) {
         case UIState::CALIBRATION:  title = "";  back = true;  break;
         case UIState::CONFIRM:      title = "";  back = true;  break;
         case UIState::AUTOTUNING:   title = "";  back = true;  break;
+        case UIState::PORTAFILTER_LEARN: title = "Learn";  back = true;  break;
         case UIState::PURGE_CONFIRM:     title = "";  back = false; break;  // part of the grind cycle
         case UIState::OTA_UPDATE:        title = "";  back = false; break;
         case UIState::OTA_UPDATE_FAILED: title = "";  back = false; break;
@@ -511,6 +529,9 @@ void UIManager::handle_menubar_back() {
         case UIState::EDIT:        if (edit_controller_)       edit_controller_->handle_cancel(); break;
         case UIState::CONFIRM:     if (confirm_controller_)    confirm_controller_->handle_cancel(); break;
         case UIState::AUTOTUNING:  if (autotune_controller_)   autotune_controller_->handle_cancel(); break;
+        case UIState::PORTAFILTER_LEARN:
+            if (portafilter_learn_controller_) portafilter_learn_controller_->handle_cancel();
+            break;
         case UIState::MENU:        menu_screen.go_back(); break;
         default:                   switch_to_state(UIState::READY); break;
     }
@@ -540,6 +561,8 @@ void UIManager::init_controllers() {
     screen_timeout_controller_ = std::make_unique<ScreenTimeoutController>(this);
     jog_adjust_controller_ = std::make_unique<JogAdjustController>(this);
     diagnostics_controller_ = std::make_unique<DiagnosticsController>();
+    auto_mode_controller_ = std::make_unique<AutoModeController>(this);
+    portafilter_learn_controller_ = std::make_unique<PortafilterLearnController>(this);
 
     // Initialize diagnostics controller
     if (diagnostics_controller_) {
@@ -559,6 +582,8 @@ void UIManager::register_controller_events() {
     if (ota_data_export_controller_) ota_data_export_controller_->register_events();
     if (screen_timeout_controller_) screen_timeout_controller_->register_events();
     if (jog_adjust_controller_) jog_adjust_controller_->register_events();
+    if (auto_mode_controller_) auto_mode_controller_->register_events();
+    if (portafilter_learn_controller_) portafilter_learn_controller_->register_events();
 
     // Global navigation bar back arrow → contextual back for the current screen.
     EventBridgeLVGL::register_handler(EventBridgeLVGL::EventType::MENUBAR_BACK,
@@ -598,6 +623,28 @@ void UIManager::refresh_auto_action_settings() {
     auto_actions_.last_auto_return_ms = now;
 }
 
+int UIManager::load_home_tab() const {
+    Preferences prefs;
+    prefs.begin("autogrind", true);
+    const bool auto_home = prefs.getBool(kPrefKeyAutoHome, false);
+    prefs.end();
+    return auto_home ? kAutoTabIndex : tab_for_profile(profile_controller->get_current_profile());
+}
+
+void UIManager::save_home_tab(int tab) {
+    // Remember AUTO vs the manual profiles across reboots (profile index persists on its own)
+    if (tab != kAutoTabIndex && !is_profile_tab(tab)) {
+        return;
+    }
+    const bool auto_home = (tab == kAutoTabIndex);
+    Preferences prefs;
+    prefs.begin("autogrind", false);
+    if (prefs.getBool(kPrefKeyAutoHome, false) != auto_home) {
+        prefs.putBool(kPrefKeyAutoHome, auto_home);
+    }
+    prefs.end();
+}
+
 void UIManager::refresh_screensaver_settings() {
     if (screen_timeout_controller_) {
         screen_timeout_controller_->refresh_settings();
@@ -622,7 +669,8 @@ void UIManager::update_auto_actions() {
 
     const uint32_t now = millis();
     const bool grinder_active = (grind_controller && grind_controller->is_active());
-    const bool on_ready_tab = state_machine->is_state(UIState::READY) && current_tab < 3;
+    // Start-on-cup applies to the manual profile tabs; AUTO runs its own placement detection
+    const bool on_ready_tab = state_machine->is_state(UIState::READY) && is_profile_tab(current_tab);
 
     if (auto_actions_.auto_start_enabled && on_ready_tab && !grinder_active && grinding_controller_) {
         auto* filter = sensor->get_raw_filter();
