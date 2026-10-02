@@ -134,6 +134,10 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
     lv_label_set_text(name_label, "AUTO");
     lv_label_set_text(auto_value_label, "--");
 
+    // Long-press anywhere on the page (not its buttons) opens Learn Portafilters
+    lv_obj_add_event_cb(parent, EventBridgeLVGL::dispatch_event, LV_EVENT_LONG_PRESSED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::AUTO_LONG_PRESS)));
+
     auto_status_label = lv_label_create(parent);
     lv_label_set_long_mode(auto_status_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(auto_status_label, LV_PCT(90));
@@ -169,24 +173,50 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
                             reinterpret_cast<void*>(static_cast<intptr_t>(events[i])));
         lv_obj_add_flag(auto_label_buttons[i], LV_OBJ_FLAG_HIDDEN);
     }
+
+    auto_start_button = create_round_button(button_row, LV_SYMBOL_PLAY, THEME_COLOR_PRIMARY);
+    lv_obj_add_event_cb(auto_start_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(ET::AUTO_START)));
+    lv_obj_add_flag(auto_start_button, LV_OBJ_FLAG_HIDDEN);
+
+    auto_swap_button = create_round_button(button_row, "", THEME_COLOR_NEUTRAL);
+    lv_obj_set_size(auto_swap_button, 120, 60);
+    auto_swap_label = lv_obj_get_child(auto_swap_button, 0);
+    lv_obj_add_event_cb(auto_swap_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(ET::AUTO_SWAP_GUESS)));
+    lv_obj_add_flag(auto_swap_button, LV_OBJ_FLAG_HIDDEN);
 }
 
-void ReadyScreen::update_auto_page(const char* value_text, const char* status_text, bool ask_label) {
+static void set_visible(lv_obj_t* obj, bool visible) {
+    if (!obj) {
+        return;
+    }
+    if (visible) {
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void ReadyScreen::update_auto_page(const char* value_text, const char* status_text, AutoPageAction action,
+                                   const char* swap_text, uint32_t start_color) {
     if (auto_value_label) {
         lv_label_set_text(auto_value_label, value_text ? value_text : "");
     }
     if (auto_status_label) {
         lv_label_set_text(auto_status_label, status_text ? status_text : "");
     }
+
+    const bool ask = (action == AutoPageAction::ASK_LABEL);
+    const bool start = (action == AutoPageAction::START);
     for (lv_obj_t* button : auto_label_buttons) {
-        if (!button) {
-            continue;
-        }
-        if (ask_label) {
-            lv_obj_clear_flag(button, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(button, LV_OBJ_FLAG_HIDDEN);
-        }
+        set_visible(button, ask);
+    }
+    set_visible(auto_start_button, start);
+    set_visible(auto_swap_button, start);
+    if (start) {
+        lv_obj_set_style_bg_color(auto_start_button, lv_color_hex(start_color), 0);
+        lv_label_set_text(auto_swap_label, swap_text ? swap_text : "");
     }
 }
 

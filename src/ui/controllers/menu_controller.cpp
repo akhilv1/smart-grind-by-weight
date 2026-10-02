@@ -35,6 +35,24 @@ void MenuUIController::register_events() {
     EventBridgeLVGL::register_handler(ET::MENU_RESET, [this](lv_event_t*) { handle_reset(); });
     EventBridgeLVGL::register_handler(ET::MENU_PURGE, [this](lv_event_t*) { handle_purge(); });
     EventBridgeLVGL::register_handler(ET::PORTAFILTER_FORGET, [this](lv_event_t* e) { handle_portafilter_forget(e); });
+    EventBridgeLVGL::register_handler(ET::AUTO_MODE_AUTO_START_TOGGLE, [this](lv_event_t*) {
+        lv_obj_t* toggle = ui_manager_ ? ui_manager_->menu_screen.get_auto_mode_auto_start_toggle() : nullptr;
+        if (!toggle) return;
+        const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+        Preferences prefs;
+        prefs.begin("autogrind", false);
+        prefs.putBool(AutoModeController::kPrefKeyAutoStart, enabled);
+        prefs.end();
+        if (ui_manager_->auto_mode_controller_) {
+            ui_manager_->auto_mode_controller_->refresh_settings();
+        }
+        LOG_BLE("AUTO tab auto start %s\n", enabled ? "enabled" : "disabled");
+    });
+    EventBridgeLVGL::register_handler(ET::MENU_LEARN_PORTAFILTERS, [this](lv_event_t*) {
+        if (ui_manager_ && ui_manager_->portafilter_learn_controller_) {
+            ui_manager_->portafilter_learn_controller_->start();
+        }
+    });
     EventBridgeLVGL::register_handler(ET::MENU_MOTOR_TEST, [this](lv_event_t*) { handle_motor_test(); });
     EventBridgeLVGL::register_handler(ET::MENU_AUTOTUNE, [this](lv_event_t*) { handle_autotune(); });
     EventBridgeLVGL::register_handler(ET::MENU_DIAGNOSTIC_RESET, [this](lv_event_t*) { handle_diagnostics_reset(); });

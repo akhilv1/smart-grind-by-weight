@@ -16,6 +16,7 @@
 #include "screens/ota_screen.h"
 #include "screens/ota_update_failed_screen.h"
 #include "screens/autotune_screen.h"
+#include "screens/portafilter_learn_screen.h"
 #include "event_bridge_lvgl.h"
 #include "controllers/calibration_controller.h"
 #include "controllers/autotune_controller.h"
@@ -28,6 +29,7 @@
 #include "controllers/screen_timeout_controller.h"
 #include "controllers/menu_controller.h"
 #include "controllers/auto_mode_controller.h"
+#include "controllers/portafilter_learn_controller.h"
 #include "controllers/status_indicator_controller.h"
 #include "../system/state_machine.h"
 #include "../system/diagnostics_controller.h"
@@ -64,6 +66,7 @@ class UIManager {
     friend class ScreenTimeoutController;
     friend class JogAdjustController;
     friend class AutoModeController;
+    friend class PortafilterLearnController;
     
 private:
     HardwareManager* hardware_manager;
@@ -101,6 +104,7 @@ private:
     std::unique_ptr<JogAdjustController> jog_adjust_controller_;
     std::unique_ptr<DiagnosticsController> diagnostics_controller_;
     std::unique_ptr<AutoModeController> auto_mode_controller_;
+    std::unique_ptr<PortafilterLearnController> portafilter_learn_controller_;
 
 public:
     BootScreen boot_screen;
@@ -112,6 +116,7 @@ public:
     ConfirmScreen confirm_screen;
     PurgeConfirmScreen purge_confirm_screen;
     AutoTuneScreen autotune_screen;
+    PortafilterLearnScreen portafilter_learn_screen;
     OTAScreen ota_screen;
     OtaUpdateFailedScreen ota_update_failed_screen;
 
@@ -151,6 +156,7 @@ public:
     GrindController* get_grind_controller() { return grind_controller; }
     OtaDataExportController* get_ota_data_export_controller() { return ota_data_export_controller_.get(); }
     AutoModeController* get_auto_mode_controller() { return auto_mode_controller_.get(); }
+    PortafilterLearnController* get_portafilter_learn_controller() { return portafilter_learn_controller_.get(); }
     void set_current_tab(int tab) { current_tab = tab; }
     
     void set_background_active(bool active);

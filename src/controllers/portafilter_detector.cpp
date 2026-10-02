@@ -1,6 +1,7 @@
 #include "portafilter_detector.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include "preferences_idf.h"
 #include <cstdio>
@@ -61,7 +62,10 @@ PortafilterDetection PortafilterDetector::classify(float weight_g) const {
     return result;
 }
 
-int PortafilterDetector::learn(float weight_g, ShotType shot_type, int hint_cluster) {
+int PortafilterDetector::learn(float weight_g, ShotType shot_type, int hint_cluster, bool* created) {
+    if (created) {
+        *created = false;
+    }
     if (!std::isfinite(weight_g) || weight_g <= 0.0f) {
         return -1;
     }
@@ -73,7 +77,7 @@ int PortafilterDetector::learn(float weight_g, ShotType shot_type, int hint_clus
     } else {
         float distance_sigmas = 0.0f;
         const int nearest = nearest_cluster(weight_g, shot_type, &distance_sigmas);
-        if (nearest >= 0 && std::fabs(weight_g - clusters_[nearest].mean_g) <= cluster_gate(nearest)) {
+        if (nearest >= 0 && is_same_setup(nearest, weight_g)) {
             index = nearest;
         }
     }
@@ -92,6 +96,9 @@ int PortafilterDetector::learn(float weight_g, ShotType shot_type, int hint_clus
         index = cluster_count_++;
         clusters_[index] = {};
         clusters_[index].shot_type = static_cast<uint8_t>(shot_type);
+        if (created) {
+            *created = true;
+        }
     }
 
     add_sample(clusters_[index], weight_g);
@@ -134,6 +141,49 @@ float PortafilterDetector::cluster_gate(int index) const {
     return gate;
 }
 
+PortafilterSeparation PortafilterDetector::separation(int index, int* nearest_other) const {
+    PortafilterSeparation worst = PortafilterSeparation::CLEAR;
+    int nearest = -1;
+    float nearest_distance = 0.0f;
+
+    for (int i = 0; i < cluster_count_; ++i) {
+        if (clusters_[i].shot_type == clusters_[index].shot_type) {
+            continue;
+        }
+        const float distance_g = std::fabs(clusters_[i].mean_g - clusters_[index].mean_g);
+        if (nearest < 0 || distance_g < nearest_distance) {
+            nearest = i;
+            nearest_distance = distance_g;
+        }
+
+        PortafilterSeparation level = PortafilterSeparation::CLEAR;
+        if (distance_g <= std::fmax(cluster_gate(i), cluster_gate(index))) {
+            level = PortafilterSeparation::CONFLICT;
+        } else if (distance_g <= cluster_gate(i) + cluster_gate(index)) {
+            level = PortafilterSeparation::CLOSE;
+        }
+        if (static_cast<int>(level) > static_cast<int>(worst)) {
+            worst = level;
+        }
+    }
+
+    if (nearest_other) {
+        *nearest_other = nearest;
+    }
+    return worst;
+}
+
+float PortafilterDetector::same_setup_radius(int index) const {
+    // Measured spread only (no prior): a single sample has none, so the floor applies
+    const PortafilterCluster& c = clusters_[index];
+    const float measured_sigma = (c.count >= 2) ? std::sqrt(c.m2 / (c.count - 1)) : 0.0f;
+    return std::fmax(USER_PF_SAME_SETUP_MIN_G, 3.0f * measured_sigma);
+}
+
+bool PortafilterDetector::is_same_setup(int index, float weight_g) const {
+    return std::fabs(weight_g - clusters_[index].mean_g) <= same_setup_radius(index);
+}
+
 const char* PortafilterDetector::shot_type_name(ShotType shot_type) {
     return shot_type == ShotType::DOUBLE ? "DOUBLE" : "SINGLE";
 }
@@ -157,9 +207,9 @@ void PortafilterDetector::merge_overlapping(int index) {
         if (i == index || clusters_[i].shot_type != clusters_[index].shot_type) {
             continue;
         }
+        // Merge only when the two clusters are the same physical setup
         const float distance_g = std::fabs(clusters_[i].mean_g - clusters_[index].mean_g);
-        const float smaller_gate = std::fmin(cluster_gate(i), cluster_gate(index));
-        if (distance_g > std::fmax(USER_PF_MERGE_GATE_G, smaller_gate)) {
+        if (distance_g > std::fmin(same_setup_radius(i), same_setup_radius(index))) {
             continue;
         }
 
@@ -223,7 +273,11 @@ void PortafilterDetector::load() {
     const size_t read = prefs.isKey(kPrefsKey) ? prefs.getBytes(kPrefsKey, &blob, sizeof(blob)) : 0;
     prefs.end();
 
-    if (read != sizeof(blob) || blob.version != kBlobVersion || blob.count > USER_PF_MAX_CLUSTERS) {
+    // Blobs saved with a smaller USER_PF_MAX_CLUSTERS are shorter but share the layout,
+    // so accept any blob that holds its header plus the clusters it claims
+    const size_t header_size = offsetof(StoredBlob, clusters);
+    if (read < header_size || blob.version != kBlobVersion || blob.count > USER_PF_MAX_CLUSTERS ||
+        read < header_size + blob.count * sizeof(PortafilterCluster)) {
         return;
     }
     for (int i = 0; i < blob.count; ++i) {

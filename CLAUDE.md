@@ -36,9 +36,9 @@ python3 tools/grinder.py analyze
 - **GrindController**: 9-phase state machine with predictive flow control, 10 pulse corrections, mechanical instability detection, and time mode additional pulses
 - **LoadCell (HX711)**: Multi-mode precision weight measurement (instant, smoothed, filtered), calibration flag, noise diagnostics; a one-shot boot tare zeroes the (empty) scale at startup so it begins near zero, and the display is suppressed (shows 0.0) until that first tare completes so the raw reading never flashes
 - **DiagnosticsController**: System health monitoring (calibration status, sustained noise, mechanical instability), state persistence, hysteresis, priority-based warnings
-- **UIManager**: 8 screens with LVGL integration (including the boot splash); READY screen is a swipe tabview — Single / Double / Custom / MENU / **Scale** (5 tabs, iOS-style page-indicator dots pinned to the bottom edge); menu page surfaces quick Tools (Calibrate, Tune Pulses, Motor Test) followed by Settings (Bluetooth, Display, Grind Settings) and Info sections (Diagnostics, System Info, Logs & Data, Lifetime Stats), warning icon indicator, split-button layout for time mode pulses
+- **UIManager**: 8 screens with LVGL integration (including the boot splash); READY screen is a swipe tabview — **AUTO** / Single / Double / Custom / MENU / **Scale** (6 tabs, iOS-style page-indicator dots pinned to the bottom edge; use the `UIManager::k*TabIndex` constants and `is_profile_tab()`/`profile_for_tab()` helpers, never raw indices); menu page surfaces quick Tools (Calibrate, Tune Pulses, Motor Test) followed by Settings (Bluetooth, Display, Grind Settings, Auto Mode) and Info sections (Diagnostics, System Info, Logs & Data, Lifetime Stats), warning icon indicator, split-button layout for time mode pulses
 - **BluetoothManager**: BLE enable/disable is owned by the **Bluetooth task** — the UI posts `request_enable()`/`request_disable()` to a lifecycle queue and polls `is_lifecycle_pending()`; never call `enable()`/`disable()` (NimBLE init/teardown) from the UI/LVGL task. OTA start commands are **rejected unless the grind controller is IDLE** (an OTA suspends the grind-control task, which mid-grind would freeze the loop with the motor on)
-- **Grind chart**: the chart grind layout keeps the full session history (10Hz decimated, preallocated 1024-point series) in a horizontally scrollable viewport that auto-follows live data; it never shifts data out, so the whole session is reviewable after completion
+- **Grind chart**: real time-based X axis — samples carry their Core 0 `sample_time_ms` (stamped in `GrindController::emit_ui_event`) and are bucketed (50ms) into a PSRAM session history; the visible span starts from the predicted duration and widens (re-rendering from history) so the whole session always fits, with whole-second gridlines and axis labels. Gaps >500ms between samples (paused phases) are cut from the timeline; resuming from HOPPER_REFILL keeps the history
 - **StateMachine**: Central state coordination (BOOT → READY → GRINDING → GRIND_COMPLETE)
 
 **Update Intervals:** 20ms grind control, 25ms load cell (active), 50ms UI/hardware
@@ -71,6 +71,14 @@ python3 tools/grinder.py analyze
 - **Purge popup**: "Keep purge grinds from now on" checkbox switches mode from Purge → Prime in preferences
 - **Logging disabled** during PURGE_CONFIRM phase to avoid capturing data while paused
 - **Preferences**: `chute_mode` (int: 0=Prime, 1=Purge, default=1), `chute_amount_g` (float: 0.1-5.0, default=1.0)
+
+**AUTO Mode (portafilter detection):**
+- `PortafilterDetector` (`src/controllers/`): online clustering — one cluster per physical handle+basket+funnel setup (mean/variance via Welford, sample count capped at `USER_PF_MAX_SAMPLES`, up to `USER_PF_MAX_CLUSTERS`), labeled SINGLE/DOUBLE by basket. Matching gate = `USER_PF_MATCH_SIGMAS` x sigma (prior-blended, clamped `USER_PF_MIN/MAX_GATE_G`); near-tie between labels = AMBIGUOUS. Joining/merging uses the stricter `is_same_setup()` (max(`USER_PF_SAME_SETUP_MIN_G`, 3x measured sigma)). NVS blob `portafilter/clusters` (shorter blobs from a smaller cap load fine)
+- `PlacementTracker` (`src/controllers/`): place/settle/lift detection measuring the tare-independent weight step; shared by AUTO and the learn tool
+- `AutoModeController` (UI): AUTO tab flow — guess + START (flip pill to correct), SINGLE/DOUBLE prompt for unknown/ambiguous; learns only when the grind completes. Optional Auto Start (`autogrind/pf_auto_start`) grinds `USER_PF_AUTO_START_DELAY_MS` after a confident match. Long-press the AUTO page opens Learn Portafilters
+- `PortafilterLearnController` + `PortafilterLearnScreen` (`UIState::PORTAFILTER_LEARN`): teach setups without grinding; weight-sorted list colored by `separation()` with per-row delete
+- **Settings → Auto Mode** page: Auto Start toggle, Learn Portafilters button, learned-setup list (tap to forget). Start on Cup only applies to the manual profile tabs
+- **LVGL printf has no float support** (`LV_SPRINTF_USE_FLOAT` off): format floats with `snprintf`, never `lv_label_set_text_fmt("%f")`
 
 **Time Mode Pulses:** Split-button completion screen (OK + PULSE), `TIME_ADDITIONAL_PULSE` phase, 100ms duration
 

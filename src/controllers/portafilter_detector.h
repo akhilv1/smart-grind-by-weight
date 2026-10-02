@@ -24,6 +24,13 @@ enum class PortafilterMatch {
     UNTRAINED    // Nothing learned yet
 };
 
+// How well a learned setup is separated from the nearest setup with the other label
+enum class PortafilterSeparation {
+    CLEAR,     // Gates don't overlap: always told apart
+    CLOSE,     // Gates overlap: some placements will be asked about
+    CONFLICT   // Each mean sits inside the other's gate: usually indistinguishable
+};
+
 struct PortafilterDetection {
     PortafilterMatch status = PortafilterMatch::UNTRAINED;
     int cluster_index = -1;
@@ -49,9 +56,15 @@ public:
     PortafilterDetection classify(float weight_g) const;
 
     // Add a confirmed sample. With a valid hint the sample updates that cluster;
-    // otherwise it joins the nearest same-label cluster within its gate, or starts a
-    // new cluster. Returns the cluster index the sample landed in (-1 on failure).
-    int learn(float weight_g, ShotType shot_type, int hint_cluster = -1);
+    // otherwise it joins the nearest same-label cluster that is the same physical
+    // setup (see is_same_setup), or starts a new cluster. Returns the cluster index
+    // the sample landed in and sets *created when a new cluster was made.
+    int learn(float weight_g, ShotType shot_type, int hint_cluster = -1, bool* created = nullptr);
+
+    // Strict "this weight is that physical setup" test: within max(USER_PF_SAME_SETUP_MIN_G,
+    // 3x the cluster's *measured* sigma). Tighter than the match gate, which is padded
+    // by the prior so AUTO tolerates placement noise and grounds residue.
+    bool is_same_setup(int index, float weight_g) const;
 
     void forget(int index);
     void forget_all();
@@ -60,6 +73,11 @@ public:
     const PortafilterCluster& cluster(int index) const { return clusters_[index]; }
     float cluster_sigma(int index) const;
     float cluster_gate(int index) const;
+    float same_setup_radius(int index) const;
+
+    // Worst separation between this setup and any setup with the other label.
+    // nearest_other receives that setup's index (-1 if there is none).
+    PortafilterSeparation separation(int index, int* nearest_other = nullptr) const;
 
     static const char* shot_type_name(ShotType shot_type);
 

@@ -1,23 +1,29 @@
 #pragma once
 #include <lvgl.h>
 #include <cstdint>
+#include "../../controllers/placement_tracker.h"
 #include "../../controllers/portafilter_detector.h"
 
 class UIManager;
 
 // Drives the AUTO home tab: detects a portafilter being placed, identifies it with
-// the PortafilterDetector, and grinds the matching SINGLE/DOUBLE profile.
+// the PortafilterDetector, shows its guess, and grinds the matching SINGLE/DOUBLE
+// profile when the user presses START.
 //
-// Placement is measured as a weight *step* (settled weight after placement minus the
-// settled baseline before), so it is independent of wherever the last tare left the
-// scale. Unknown or ambiguous portafilters prompt the user to label them; the sample
+// Placement detection and the tare-independent weight-step measurement come from
+// PlacementTracker (shared with the Learn Portafilters tool). Unknown or ambiguous portafilters prompt the user to label them; the sample
 // is only learned once the resulting grind completes successfully, so a cancelled
 // misdetection never pollutes the clusters.
 class AutoModeController {
 public:
     explicit AutoModeController(UIManager* manager);
 
+    // NVS keys (namespace "autogrind")
+    static constexpr const char* kPrefKeyAutoStart = "pf_auto_start";
+
     void register_events();
+    // Reload the Auto Start preference (call after the setting changes)
+    void refresh_settings();
     void update();
     void on_tab_changed(int tab);
     void refresh_display();
@@ -28,7 +34,7 @@ private:
     enum class Phase {
         WAIT_FOR_PLACEMENT,  // Tracking the empty-scale baseline
         SETTLING,            // Weight stepped up; waiting for it to settle
-        STARTING,            // Identified; showing the result before grinding
+        GUESSED,             // Identified; waiting for START (guess can be flipped)
         ASK_LABEL,           // Unknown portafilter; waiting for SINGLE/DOUBLE
         OCCUPIED             // Portafilter still on the scale after a grind
     };
@@ -42,10 +48,13 @@ private:
         uint32_t created_ms = 0;
     };
 
-    void update_detection(uint32_t now);
+    void update_detection();
+    void update_auto_start(uint32_t now);
     void update_learning(uint32_t now);
-    void handle_settled_placement(float step_g, uint32_t now);
+    void handle_settled_placement(float step_g);
     void handle_label(ShotType shot_type);
+    void handle_start();
+    void handle_swap_guess();
     void start_grind(ShotType shot_type, int cluster_hint);
     void on_activated();
     void enter_phase(Phase phase);
@@ -54,14 +63,15 @@ private:
     UIManager* ui_manager_;
     PortafilterDetector detector_;
 
+    PlacementTracker tracker_;
     Phase phase_ = Phase::WAIT_FOR_PLACEMENT;
-    bool baseline_valid_ = false;
-    float baseline_g_ = 0.0f;       // Settled weight before placement
-    float occupied_level_g_ = 0.0f; // Settled weight while the portafilter sits on the scale
     float last_step_g_ = 0.0f;      // Most recent placement step (portafilter weight)
-    uint32_t start_deadline_ms_ = 0;
     ShotType detected_shot_ = ShotType::SINGLE;
-    int detected_cluster_ = -1;
+    int detected_cluster_ = -1;     // Matched setup, or -1 once the user flips the guess
+    bool guess_flipped_ = false;
+    bool auto_start_enabled_ = false;
+    bool auto_start_pending_ = false;       // Auto Start countdown running
+    uint32_t auto_start_deadline_ms_ = 0;
     const char* ask_prompt_ = nullptr;
     bool was_active_ = false;
     bool returned_from_grind_ = false;  // Next activation follows an AUTO-started grind

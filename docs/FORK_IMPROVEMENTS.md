@@ -1,6 +1,6 @@
 # Fork Improvements
 
-This fork builds on the excellent [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-grind-by-weight) project and adds a substantial round of usability, stability, and tooling improvements on top of it. Everything below ships in firmware **v2.4.0**.
+This fork builds on the excellent [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-grind-by-weight) project and adds a substantial round of usability, stability, and tooling improvements on top of it. Everything below ships in firmware **v2.6.0**.
 
 The changes fall into six themes:
 
@@ -29,7 +29,7 @@ Calibration was restyled as a step-by-step dialog with a per-step primary button
 
 ### In-tab sliding action buttons
 
-The home screen tabs (Single / Double / Custom / MENU / Scale) each carry their own in-page action buttons — play, settings gear, or TARE + GRIND — that **slide with the swipe** as part of the tab content. The old floating bottom button now only appears during an actual grind cycle, so the home screen stays clean.
+The home screen tabs (AUTO / Single / Double / Custom / MENU / Scale) each carry their own in-page action buttons — play, settings gear, or TARE + GRIND — that **slide with the swipe** as part of the tab content. The old floating bottom button now only appears during an actual grind cycle, so the home screen stays clean.
 
 ### Scale tab with manual grinding
 
@@ -40,7 +40,18 @@ Scale is a top-level swipe tab with a large live-weight readout and two round bu
 
 Because nothing tares around manual grinding, weight **accumulates** against the last tare — ideal for topping off a shot in small increments while watching the number climb.
 
-iOS-style page-indicator dots along the bottom edge show which of the five tabs you're on.
+iOS-style page-indicator dots along the bottom edge show which of the six tabs you're on.
+
+### AUTO tab: portafilter auto-detection
+
+AUTO is the first home tab. Place a portafilter and it identifies the setup by weight, shows its guess with the profile's target, and grinds that SINGLE or DOUBLE profile when you press **START**.
+
+- **Weight step, not absolute reading** — a placement is measured as the settled weight after placing minus the settled empty-scale baseline before it (`PlacementTracker`), so wherever the last tare left the zero doesn't matter.
+- **One cluster per physical setup** — each handle + basket + funnel combination is its own learned cluster (running mean and variance, up to 16), labeled by its basket. A placement matches the cluster it is closest to in units of that cluster's own spread (4 sigma gate, clamped 1–8 g; sigma blends the measured variance with a 0.5 g prior). If a single and a double fit about equally well it asks instead of guessing.
+- **Correctable guess** — the pill next to START flips single/double; unknown or ambiguous weights show SINGLE/DOUBLE buttons. Samples from AUTO are learned only when the grind completes, so a cancelled misdetection never pollutes a cluster.
+- **Auto Start** (Settings → Auto Mode, off by default) — grinds 1.5 s after a confident match; lifting the portafilter or flipping the guess cancels.
+- **Learn Portafilters** (Settings → Auto Mode, or long-press the AUTO page) — place each setup, tag it SINGLE or DOUBLE, lift, repeat — no grinding needed. Samples join an existing setup only when they are the same physical setup (within max(0.5 g, 3x its measured sigma)); otherwise a new setup is created. A weight-sorted list colors each setup by its separation from the nearest opposite-label setup (white clear, orange close, red indistinguishable) with a one-line verdict, and each row has a delete button.
+- Learned setups persist in NVS (`portafilter/clusters`); the home tab (AUTO vs profiles) persists across reboots (`autogrind/auto_home`).
 
 ---
 
@@ -120,9 +131,9 @@ The predictive grind can now land on the motor-stop alone (no correction pulses)
 
 If the flow rate averaged over 3 seconds stays near zero while the motor runs (weight mode), the hopper is empty — the grind **pauses instead of burning the timeout**: motor off, "Out of Beans" popup, red STOP to cancel or green PLAY to resume after refilling. The pause doesn't count against the grind timeout, the failsafes stay inert while you handle the hopper, and resuming re-learns motor latency while keeping the already-learned stop target so a nearly-finished grind still lands on weight. Starting on an empty hopper is caught the same way (~3 s instead of the full 60 s timeout). Tunables: `GRIND_HOPPER_EMPTY_FLOW_THRESHOLD_GPS`, `GRIND_HOPPER_EMPTY_SUSTAIN_MS`.
 
-### Full-session grind chart
+### Grind chart with a real time axis
 
-The "nerdy chart" grind view no longer slides old data off the left edge. The whole session is kept (10 Hz decimated, preallocated series) and the chart scrolls **horizontally** — it auto-follows the live edge while grinding, and you can swipe back through the entire session during pauses or after completion. Tap still toggles between the arc and chart layouts.
+The "nerdy chart" grind view plots against real time: t=0 is pinned to the left edge and the trace grows to the right. Samples are bucketed into a session history (50 ms buckets, PSRAM) by the timestamp the grind controller stamped when it sampled them, so UI queue jitter or dropped events can't distort the time scale. When a grind outlasts the visible span, the span widens and the whole session is re-rendered — it is always fully in view, no scrolling. Faint vertical gridlines mark whole seconds (1/2/5 s ticks by span) with `0s` / end-time labels, the Y axis grows with observed weight (overshoot is never clipped), and a dim line marks the target weight in weight mode. Paused phases (purge confirm, hopper refill) are cut out of the timeline, and resuming from a refill keeps the session's history. Tap still toggles between the arc and chart layouts.
 
 ### Hardware adaptability
 

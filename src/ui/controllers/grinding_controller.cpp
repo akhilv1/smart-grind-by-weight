@@ -144,6 +144,7 @@ void GrindingUIController::on_state_changed(UIState new_state) {
             break;
         case UIState::MENU:
         case UIState::CALIBRATION:
+        case UIState::PORTAFILTER_LEARN:
         case UIState::CONFIRM:
         case UIState::OTA_UPDATE:
         case UIState::OTA_UPDATE_FAILED:

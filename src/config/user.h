@@ -82,14 +82,14 @@
 // Each physical portafilter is learned as its own weight cluster (mean + variance)
 // labeled SINGLE or DOUBLE. A placement matches the cluster it is statistically
 // closest to; unknown weights prompt the user to label them, creating a new cluster.
-#define USER_PF_MAX_CLUSTERS 8                                                  // Maximum learned portafilters
+#define USER_PF_MAX_CLUSTERS 16                                                 // Maximum learned setups (handle x basket x funnel combos)
 #define USER_PF_MAX_SAMPLES 20                                                  // Sample-count cap; older samples fade so clusters track drift
 #define USER_PF_PRIOR_SIGMA_G 0.5f                                              // Assumed spread before a cluster has samples of its own (grams)
 #define USER_PF_PRIOR_STRENGTH 2.0f                                             // Prior weight in samples blended into each cluster's variance
 #define USER_PF_MATCH_SIGMAS 4.0f                                               // Match gate: |weight - mean| <= this many sigmas...
 #define USER_PF_MIN_GATE_G 1.0f                                                 // ...but never tighter than this (grams)
 #define USER_PF_MAX_GATE_G 8.0f                                                 // ...and never looser than this (grams)
-#define USER_PF_MERGE_GATE_G 2.0f                                               // Same-label clusters closer than this (or their match gate) merge
+#define USER_PF_SAME_SETUP_MIN_G 0.5f                                           // Samples/clusters within max(this, 3x measured sigma) are the same physical setup
 #define USER_PF_AMBIGUITY_MARGIN_SIGMAS 1.0f                                    // Single vs double matches closer than this are ambiguous
 #define USER_PF_PLACEMENT_DELTA_G USER_AUTO_GRIND_TRIGGER_DELTA_G               // Minimum weight step that counts as placing a portafilter
-#define USER_PF_START_DELAY_MS 1200                                             // Show the detection result this long before grinding starts
+#define USER_PF_AUTO_START_DELAY_MS 1500                                        // Auto Start: show the guess this long before grinding

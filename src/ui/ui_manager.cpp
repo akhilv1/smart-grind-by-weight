@@ -112,6 +112,7 @@ void UIManager::create_ui() {
     confirm_screen.create();
     purge_confirm_screen.create();
     autotune_screen.create();
+    portafilter_learn_screen.create();
     ota_screen.create();
     ota_update_failed_screen.create();
     
@@ -136,6 +137,7 @@ void UIManager::create_ui() {
     calibration_screen.hide();
     confirm_screen.hide();
     autotune_screen.hide();
+    portafilter_learn_screen.hide();
     ota_screen.hide();
     ota_update_failed_screen.hide();
     
@@ -196,6 +198,12 @@ void UIManager::update() {
         case UIState::AUTOTUNING:
             if (autotune_controller_) {
                 autotune_controller_->update();
+            }
+            break;
+
+        case UIState::PORTAFILTER_LEARN:
+            if (portafilter_learn_controller_) {
+                portafilter_learn_controller_->update();
             }
             break;
 
@@ -340,6 +348,7 @@ void UIManager::switch_to_state(UIState new_state) {
     confirm_screen.hide();
     purge_confirm_screen.hide();
     autotune_screen.hide();
+    portafilter_learn_screen.hide();
     ota_screen.hide();
     ota_update_failed_screen.hide();
 
@@ -439,6 +448,10 @@ void UIManager::switch_to_state(UIState new_state) {
             autotune_screen.show();
             break;
 
+        case UIState::PORTAFILTER_LEARN:
+            portafilter_learn_screen.show();
+            break;
+
         case UIState::OTA_UPDATE:
             ota_screen.show();
             ota_screen.update_progress(0);
@@ -484,6 +497,7 @@ void UIManager::apply_menubar_for_state(UIState state) {
         case UIState::CALIBRATION:  title = "";  back = true;  break;
         case UIState::CONFIRM:      title = "";  back = true;  break;
         case UIState::AUTOTUNING:   title = "";  back = true;  break;
+        case UIState::PORTAFILTER_LEARN: title = "Learn";  back = true;  break;
         case UIState::PURGE_CONFIRM:     title = "";  back = false; break;  // part of the grind cycle
         case UIState::OTA_UPDATE:        title = "";  back = false; break;
         case UIState::OTA_UPDATE_FAILED: title = "";  back = false; break;
@@ -515,6 +529,9 @@ void UIManager::handle_menubar_back() {
         case UIState::EDIT:        if (edit_controller_)       edit_controller_->handle_cancel(); break;
         case UIState::CONFIRM:     if (confirm_controller_)    confirm_controller_->handle_cancel(); break;
         case UIState::AUTOTUNING:  if (autotune_controller_)   autotune_controller_->handle_cancel(); break;
+        case UIState::PORTAFILTER_LEARN:
+            if (portafilter_learn_controller_) portafilter_learn_controller_->handle_cancel();
+            break;
         case UIState::MENU:        menu_screen.go_back(); break;
         default:                   switch_to_state(UIState::READY); break;
     }
@@ -545,6 +562,7 @@ void UIManager::init_controllers() {
     jog_adjust_controller_ = std::make_unique<JogAdjustController>(this);
     diagnostics_controller_ = std::make_unique<DiagnosticsController>();
     auto_mode_controller_ = std::make_unique<AutoModeController>(this);
+    portafilter_learn_controller_ = std::make_unique<PortafilterLearnController>(this);
 
     // Initialize diagnostics controller
     if (diagnostics_controller_) {
@@ -565,6 +583,7 @@ void UIManager::register_controller_events() {
     if (screen_timeout_controller_) screen_timeout_controller_->register_events();
     if (jog_adjust_controller_) jog_adjust_controller_->register_events();
     if (auto_mode_controller_) auto_mode_controller_->register_events();
+    if (portafilter_learn_controller_) portafilter_learn_controller_->register_events();
 
     // Global navigation bar back arrow → contextual back for the current screen.
     EventBridgeLVGL::register_handler(EventBridgeLVGL::EventType::MENUBAR_BACK,

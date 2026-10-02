@@ -34,7 +34,7 @@ The Smart Grind-by-Weight is a user-friendly, touch interface-driven, highly acc
 
 ## 🔱 What's different in this fork
 
-This is a fork of [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-grind-by-weight) with a round of stability, usability, and tooling improvements on top (firmware v2.5.0):
+This is a fork of [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-grind-by-weight) with a round of stability, usability, and tooling improvements on top (firmware v2.6.0):
 
 - **Native ESP-IDF 5.4 build** — PlatformIO removed; Espressif `esp_lcd_sh8601` display driver, IDF component manager, and CI/web-installer updated to match
 - **Global navigation bar** — persistent back arrow, screen title, and Bluetooth/warning status icons on every screen, with a unified single-action-button screen layout
@@ -47,7 +47,8 @@ This is a fork of [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-g
 - **Dialog-style calibration** — guided step-by-step flow with one clear button per step
 - **BLE reliability** — OTA GATT registration order fixed, Bluetooth re-enable works without a reboot, an advertising watchdog recovers dropped connections, and the enable/disable lifecycle runs off the UI task with GATT leaks fixed (no more toggle crashes)
 - **Out-of-beans auto-pause** — a weight-mode grind pauses when the hopper runs dry (STOP to cancel, PLAY to resume after refilling) instead of burning the timeout
-- **Full-session grind chart** — the chart view keeps the whole session and scrolls horizontally to review it
+- **AUTO portafilter detection** — a new first home tab recognizes each handle + basket + funnel setup by weight (learned clusters, single vs double decided by the basket), shows its guess, and grinds on START or optional Auto Start; teach setups in **Settings → Auto Mode → Learn Portafilters** (or long-press AUTO), with a separation report showing which setups can be told apart
+- **Grind chart with a real time axis** — t=0 pinned left, the span widens so the whole session is always in view, whole-second gridlines with axis labels, timestamps taken at sample time, paused phases cut from the timeline, and a target-weight marker
 - **Safer OTA** — updates are refused unless the grind controller is idle, so an update can't freeze the control loop mid-grind
 - **Hardware resilience & options** — runtime HX711 fault detection/recovery, active-low motor relay support, 180° screen rotation
 - **Grind tuning** — pulse-free predictive grind path with an overshoot dial, runtime **Pulses** toggle in Grind Settings, faster tare with a pre-settle gate, sustained negative-weight failsafe, and hold-to-grind time-mode top-offs
@@ -61,7 +62,7 @@ This is a fork of [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-g
 
 ## ✨ Features
 
-- **User-friendly interface** with 3 profiles: Single, Double, Custom
+- **User-friendly interface** with 3 profiles: Single, Double, Custom — plus an **AUTO** tab that detects the portafilter and picks single or double for you
 - **Beautiful display** with simple graphics or detailed charts (easily switchable)
 - **High accuracy**: ±0.03g error tolerance  
 - **Zero-shot learning**: Algorithm adapts instantly to any grind size, bean setting, humidity etc. without manual tuning

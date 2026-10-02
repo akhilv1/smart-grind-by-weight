@@ -8,6 +8,7 @@
 #include "../../hardware/hardware_manager.h"
 #include "grinding_screen.h"
 #include "../event_bridge_lvgl.h"
+#include "../controllers/auto_mode_controller.h"
 #include "../../config/logging.h"
 #include "../components/blocking_overlay.h"
 #include "screensaver_timeout_steps.h"
@@ -111,6 +112,9 @@ void MenuScreen::create_menu_ui() {
     grind_mode_page = lv_menu_page_create(menu, "Grind Settings");
     create_grind_mode_page(grind_mode_page);
 
+    auto_mode_page = lv_menu_page_create(menu, "Auto Mode");
+    create_auto_mode_page(auto_mode_page);
+
     data_page = lv_menu_page_create(menu, "Logs & Data");
     create_data_page(data_page);
 
@@ -156,6 +160,9 @@ void MenuScreen::create_menu_ui() {
 
     lv_obj_t* grind_mode_item = create_menu_item(main_page, "Grind Settings");
     lv_menu_set_load_page_event(menu, grind_mode_item, grind_mode_page);
+
+    lv_obj_t* auto_mode_item = create_menu_item(main_page, "Auto Mode");
+    lv_menu_set_load_page_event(menu, auto_mode_item, auto_mode_page);
 
     create_separator(main_page, "Info");
     lv_obj_t* diagnostics_item = create_menu_item(main_page, "Diagnostics");
@@ -454,17 +461,6 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
     create_description_label(parent, "Exit the completion screen once that cup weight drops away.");
     create_toggle_row(parent, "Return", &auto_return_toggle);
 
-    // Portafilters learned by the AUTO home tab
-    create_separator(parent, "Portafilters");
-    create_description_label(parent, "AUTO learns each portafilter's weight as you use it. Tap one to forget it.");
-    portafilter_list = lv_obj_create(parent);
-    lv_obj_remove_style_all(portafilter_list);
-    lv_obj_set_size(portafilter_list, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_layout(portafilter_list, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(portafilter_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(portafilter_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(portafilter_list, LV_OBJ_FLAG_SCROLLABLE);
-
     // Pulse corrections section
     create_separator(parent, "Corrections");
     create_description_label(parent, "Top off with short pulses after the predictive grind. Needs a scale that settles cleanly; turn off on a noisy load cell.");
@@ -531,6 +527,37 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
         lv_obj_add_event_cb(grind_freshness_hours_slider, EventBridgeLVGL::dispatch_event, LV_EVENT_RELEASED,
                            reinterpret_cast<void*>(static_cast<intptr_t>(ET::GRIND_FRESHNESS_HOURS_SLIDER_RELEASED)));
     }
+}
+
+void MenuScreen::create_auto_mode_page(lv_obj_t* parent) {
+    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+
+    create_description_label(parent, "The AUTO tab recognizes each handle + basket + funnel setup by weight and picks single or double from its basket.");
+
+    create_description_label(parent, "Grind automatically a moment after a confident match. Lift the portafilter or flip the guess to cancel.");
+    create_toggle_row(parent, "Auto Start", &auto_mode_auto_start_toggle);
+    lv_obj_add_event_cb(auto_mode_auto_start_toggle, EventBridgeLVGL::dispatch_event, LV_EVENT_VALUE_CHANGED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::AUTO_MODE_AUTO_START_TOGGLE)));
+
+    create_separator(parent, "Setups");
+    learn_portafilters_button = create_button(parent, "Learn Portafilters", lv_color_hex(THEME_COLOR_ACCENT));
+    lv_obj_set_style_margin_bottom(learn_portafilters_button, 10, 0);
+    lv_obj_add_event_cb(learn_portafilters_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::MENU_LEARN_PORTAFILTERS)));
+
+    create_separator(parent, "Learned Setups");
+    create_description_label(parent, "Tap a setup to forget it.");
+    portafilter_list = lv_obj_create(parent);
+    lv_obj_remove_style_all(portafilter_list);
+    lv_obj_set_size(portafilter_list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_layout(portafilter_list, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(portafilter_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(portafilter_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_clear_flag(portafilter_list, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 void MenuScreen::create_data_page(lv_obj_t* parent) {
@@ -682,6 +709,7 @@ void MenuScreen::show() {
     update_logging_toggle();
     update_grind_mode_toggles();
     update_portafilter_list();
+    update_auto_mode_toggles();
 
     LOG_BLE("[%lums MENU] Menu screen shown successfully\n", millis());
 }
@@ -1352,7 +1380,7 @@ void MenuScreen::update_portafilter_list() {
 
     const int count = portafilter_detector ? portafilter_detector->cluster_count() : 0;
     if (count == 0) {
-        create_description_label(portafilter_list, "None yet. Place a portafilter on the AUTO tab to teach it.");
+        create_description_label(portafilter_list, "None yet. Use Learn Portafilters, or place one on the AUTO tab.");
         return;
     }
 
@@ -1377,14 +1405,18 @@ void MenuScreen::update_portafilter_list() {
         lv_obj_clear_flag(text_column, LV_OBJ_FLAG_CLICKABLE);
 
         const bool is_double = cluster.shot_type == static_cast<uint8_t>(ShotType::DOUBLE);
+        // snprintf, not lv_label_set_text_fmt: LVGL's printf is built without float support
+        char text[40];
         lv_obj_t* name_label = lv_label_create(text_column);
-        lv_label_set_text_fmt(name_label, "%s  %.1fg", is_double ? "Double" : "Single",
-                              static_cast<double>(cluster.mean_g));
+        snprintf(text, sizeof(text), "%s  %.1fg", is_double ? "Double" : "Single",
+                 static_cast<double>(cluster.mean_g));
+        lv_label_set_text(name_label, text);
 
         lv_obj_t* detail_label = lv_label_create(text_column);
-        lv_label_set_text_fmt(detail_label, "+/-%.2fg, %u grinds",
-                              static_cast<double>(portafilter_detector->cluster_sigma(i)),
-                              static_cast<unsigned>(cluster.count));
+        snprintf(text, sizeof(text), "+/-%.2fg, %u samples",
+                 static_cast<double>(portafilter_detector->cluster_sigma(i)),
+                 static_cast<unsigned>(cluster.count));
+        lv_label_set_text(detail_label, text);
         lv_obj_set_style_text_color(detail_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
 
         lv_obj_t* trash = lv_label_create(row);
@@ -1393,5 +1425,20 @@ void MenuScreen::update_portafilter_list() {
 
         lv_obj_add_event_cb(row, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
                             reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::PORTAFILTER_FORGET)));
+    }
+}
+
+void MenuScreen::update_auto_mode_toggles() {
+    if (!auto_mode_auto_start_toggle) {
+        return;
+    }
+    Preferences prefs;
+    prefs.begin("autogrind", true);
+    const bool auto_start = prefs.getBool(AutoModeController::kPrefKeyAutoStart, false);
+    prefs.end();
+    if (auto_start) {
+        lv_obj_add_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
+    } else {
+        lv_obj_clear_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
     }
 }
