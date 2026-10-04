@@ -20,13 +20,13 @@ void GrindingScreenArc::create() {
     // Profile name label
     profile_label = lv_label_create(screen);
     lv_label_set_text(profile_label, "DOUBLE");
-    lv_obj_set_style_text_font(profile_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(profile_label, THEME_FONT_DISPLAY_NAME, 0);
     lv_obj_set_style_text_color(profile_label, lv_color_hex(THEME_COLOR_SECONDARY), 0);
 
     // Target weight label
     target_label = lv_label_create(screen);
     lv_label_set_text(target_label, "Target: 18.0g");
-    lv_obj_set_style_text_font(target_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(target_label, THEME_FONT_STATUS, 0);
     lv_obj_set_style_text_color(target_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_label_set_long_mode(target_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(target_label, 200);
@@ -46,7 +46,7 @@ void GrindingScreenArc::create() {
     // Current weight label (inside arc)
     weight_label = lv_label_create(progress_arc);
     lv_label_set_text(weight_label, "0.0g");
-    lv_obj_set_style_text_font(weight_label, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(weight_label, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(weight_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_center(weight_label);
     

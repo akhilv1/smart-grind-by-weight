@@ -30,20 +30,20 @@ void PortafilterLearnScreen::create() {
 
     status_label_ = lv_label_create(screen_);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(status_label_, LV_PCT(92));
-    lv_obj_set_style_text_font(status_label_, &lv_font_montserrat_24, 0);
+    lv_obj_set_width(status_label_, THEME_CONTENT_WIDTH_PX);
+    lv_obj_set_style_text_font(status_label_, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(status_label_, lv_color_hex(THEME_COLOR_ACCENT), 0);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_pad_top(status_label_, 6, 0);
 
     weight_label_ = lv_label_create(screen_);
-    lv_obj_set_style_text_font(weight_label_, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(weight_label_, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(weight_label_, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
 
     match_label_ = lv_label_create(screen_);
     lv_label_set_long_mode(match_label_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(match_label_, LV_PCT(92));
-    lv_obj_set_style_text_font(match_label_, &lv_font_montserrat_24, 0);
+    lv_obj_set_width(match_label_, THEME_CONTENT_WIDTH_PX);
+    lv_obj_set_style_text_font(match_label_, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(match_label_, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(match_label_, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -62,7 +62,7 @@ void PortafilterLearnScreen::create() {
     const ET events[2] = {ET::LEARN_LABEL_SINGLE, ET::LEARN_LABEL_DOUBLE};
     for (int i = 0; i < 2; i++) {
         label_buttons_[i] = create_button(button_row, names[i], lv_color_hex(THEME_COLOR_PRIMARY), 120, 80,
-                                          &lv_font_montserrat_24);
+                                          THEME_FONT_ROW);
         lv_obj_set_style_radius(label_buttons_[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_color(label_buttons_[i], lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
         lv_obj_add_event_cb(label_buttons_[i], EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
@@ -72,15 +72,15 @@ void PortafilterLearnScreen::create() {
 
     summary_label_ = lv_label_create(screen_);
     lv_label_set_long_mode(summary_label_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(summary_label_, LV_PCT(92));
-    lv_obj_set_style_text_font(summary_label_, &lv_font_montserrat_24, 0);
+    lv_obj_set_width(summary_label_, THEME_CONTENT_WIDTH_PX);
+    lv_obj_set_style_text_font(summary_label_, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_align(summary_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_pad_top(summary_label_, 6, 0);
 
     // Scrollable list of learned setups fills the rest of the screen
     setup_list_ = lv_obj_create(screen_);
     lv_obj_remove_style_all(setup_list_);
-    lv_obj_set_width(setup_list_, LV_PCT(92));
+    lv_obj_set_width(setup_list_, THEME_CONTENT_WIDTH_PX);
     lv_obj_set_flex_grow(setup_list_, 1);
     lv_obj_set_layout(setup_list_, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(setup_list_, LV_FLEX_FLOW_COLUMN);
@@ -177,7 +177,7 @@ void PortafilterLearnScreen::update_setup_list(const PortafilterDetector& detect
                  cluster.shot_type == static_cast<uint8_t>(ShotType::DOUBLE) ? "Dbl" : "Sgl",
                  static_cast<double>(cluster.mean_g), static_cast<unsigned>(cluster.count));
         lv_label_set_text(name_label, text);
-        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_24, 0);
+        lv_obj_set_style_text_font(name_label, THEME_FONT_BODY, 0);
         lv_obj_set_style_text_color(name_label, color, 0);
 
         // Delete button; the setup index rides in the button's user data
@@ -185,7 +185,7 @@ void PortafilterLearnScreen::update_setup_list(const PortafilterDetector& detect
         lv_obj_set_size(delete_button, 48, 40);
         lv_obj_set_style_radius(delete_button, 8, 0);
         lv_obj_set_style_shadow_width(delete_button, 0, 0);
-        lv_obj_set_style_bg_color(delete_button, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_color(delete_button, lv_color_hex(THEME_COLOR_TRACK), 0);
         lv_obj_set_ext_click_area(delete_button, 6);
         lv_obj_set_user_data(delete_button, reinterpret_cast<void*>(static_cast<intptr_t>(index)));
         lv_obj_t* trash = lv_label_create(delete_button);

@@ -3,12 +3,13 @@
 #include "../config/constants.h"
 
 // Function declarations
-void style_as_button(lv_obj_t* object, int32_t width = 260, int32_t height = 80, const lv_font_t* font = &lv_font_montserrat_28);
+void style_as_button(lv_obj_t* object, int32_t width = THEME_CONTENT_WIDTH_PX,
+                     int32_t height = THEME_ROW_HEIGHT_PX, const lv_font_t* font = THEME_FONT_ROW);
 
 lv_obj_t* create_button(lv_obj_t* parent, const char* text,
-                       lv_color_t bg_color = lv_color_hex(THEME_COLOR_NEUTRAL),
-                       int32_t width = 260, int32_t height = 80, 
-                       const lv_font_t* font = &lv_font_montserrat_28);
+                       lv_color_t bg_color = lv_color_hex(THEME_COLOR_SURFACE),
+                       int32_t width = THEME_CONTENT_WIDTH_PX, int32_t height = THEME_ROW_HEIGHT_PX,
+                       const lv_font_t* font = THEME_FONT_ROW);
 
 void set_label_text_int(lv_obj_t* label, int32_t value, const char* unit = nullptr);
 
@@ -18,24 +19,23 @@ lv_obj_t* create_profile_label(lv_obj_t* parent, lv_obj_t** profile_label, lv_ob
 
 lv_obj_t* create_dual_button_row(lv_obj_t* parent, lv_obj_t** left_button, lv_obj_t** right_button, 
                                 const char* left_name, const char* right_name, 
-                                lv_color_t left_color = lv_color_hex(THEME_COLOR_NEUTRAL), 
-                                lv_color_t right_color = lv_color_hex(THEME_COLOR_NEUTRAL), 
-                                int height = 80, const lv_font_t* font = &lv_font_montserrat_28);
+                                lv_color_t left_color = lv_color_hex(THEME_COLOR_SURFACE),
+                                lv_color_t right_color = lv_color_hex(THEME_COLOR_SURFACE),
+                                int height = 80, const lv_font_t* font = THEME_FONT_ROW);
 
 lv_obj_t* create_data_label(lv_obj_t* parent, const char* name, lv_obj_t** value_label, bool stacked = false);
 
 // Callback signature for radio button selection changes
 typedef void (*radio_button_callback_t)(int selected_index, void* user_data);
 
-// Radio button group helper
+// Single-choice group drawn as a segmented control: one row-height card split into
+// equal segments, the selected one filled with THEME_COLOR_SELECTED. Sized for 2-3
+// short labels across the Settings content width.
 lv_obj_t* create_radio_button_group(
     lv_obj_t* parent,
-    const char* options[],           // Array of button labels
+    const char* options[],           // Segment labels
     int option_count,                // Number of options
-    lv_flex_flow_t layout,          // LV_FLEX_FLOW_ROW or LV_FLEX_FLOW_COLUMN
     int initial_selection,           // Initially selected index (0-based)
-    int32_t button_width,           // Width per button (-1 for auto)
-    int32_t button_height,          // Height per button
     radio_button_callback_t callback, // Called when selection changes
     void* user_data                 // Passed to callback
 );

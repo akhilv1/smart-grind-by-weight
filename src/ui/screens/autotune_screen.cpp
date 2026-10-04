@@ -20,7 +20,7 @@ void AutoTuneScreen::create() {
     // content below never interleaves with it)
     title_label = lv_label_create(screen);
     lv_label_set_text(title_label, "Pulse Tune");
-    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_font(title_label, THEME_FONT_TITLE, 0);
     lv_obj_set_style_text_color(title_label, lv_color_hex(THEME_COLOR_ACCENT), 0);
     lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 8);
@@ -29,7 +29,7 @@ void AutoTuneScreen::create() {
     // NOTE: "+/-" spelled out — the built-in Montserrat fonts have no U+00B1 glyph.
     live_stats_label = lv_label_create(screen);
     lv_label_set_text(live_stats_label, "Scale --.--g  +/---.---g");
-    lv_obj_set_style_text_font(live_stats_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(live_stats_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(live_stats_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(live_stats_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align_to(live_stats_label, title_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
@@ -37,10 +37,10 @@ void AutoTuneScreen::create() {
     // Current activity ("Testing 300ms pulse", ...) — the headline of what's happening
     status_label = lv_label_create(screen);
     lv_label_set_text(status_label, "Starting...");
-    lv_obj_set_style_text_font(status_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(status_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(status_label, lv_color_hex(THEME_COLOR_ACCENT), 0);
     lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(status_label, 280);
+    lv_obj_set_width(status_label, THEME_CONTENT_WIDTH_PX);
     lv_obj_align_to(status_label, live_stats_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
 
     // === Console Screen ===
@@ -56,7 +56,7 @@ void AutoTuneScreen::create() {
     console_textarea = lv_textarea_create(console_container);
     lv_obj_set_size(console_textarea, 280, 255);
     lv_textarea_set_text(console_textarea, "");
-    lv_obj_set_style_text_font(console_textarea, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(console_textarea, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(console_textarea, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_bg_color(console_textarea, lv_color_hex(THEME_COLOR_BACKGROUND), 0);
     lv_obj_set_style_border_width(console_textarea, 1, 0);
@@ -85,30 +85,30 @@ void AutoTuneScreen::create() {
 
     message_label = lv_label_create(result_container);
     lv_label_set_text(message_label, "New Motor Latency:");
-    lv_obj_set_style_text_font(message_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(message_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(message_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(message_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(message_label, 280);
+    lv_obj_set_width(message_label, THEME_CONTENT_WIDTH_PX);
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
 
     final_latency_label = lv_label_create(result_container);
     lv_label_set_text(final_latency_label, "110 ms");
-    lv_obj_set_style_text_font(final_latency_label, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(final_latency_label, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(final_latency_label, lv_color_hex(THEME_COLOR_SUCCESS), 0);
 
     previous_latency_label = lv_label_create(result_container);
     lv_label_set_text(previous_latency_label, "Previous Value: 150 ms");
-    lv_obj_set_style_text_font(previous_latency_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(previous_latency_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(previous_latency_label, lv_color_hex(0x888888), 0);
     lv_obj_set_style_text_align(previous_latency_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(previous_latency_label, 280);
+    lv_obj_set_width(previous_latency_label, THEME_CONTENT_WIDTH_PX);
     lv_label_set_long_mode(previous_latency_label, LV_LABEL_LONG_WRAP);
 
     // Single OK button (shown on the result screens). During the console/run state the
     // global nav-bar back arrow cancels the tune, so no bottom button is shown then.
     button_row = nullptr;
     cancel_button = nullptr;
-    ok_button = create_button(screen, LV_SYMBOL_OK, lv_color_hex(THEME_COLOR_SUCCESS), 260, 80, &lv_font_montserrat_32);
+    ok_button = create_button(screen, LV_SYMBOL_OK, lv_color_hex(THEME_COLOR_SUCCESS), 260, 80, THEME_FONT_SYMBOL);
     lv_obj_align(ok_button, LV_ALIGN_BOTTOM_MID, 0, -10);
 
     visible = false;

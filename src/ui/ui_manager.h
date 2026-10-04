@@ -42,10 +42,12 @@
 
 /*
  * AVAILABLE FONTS AND THEIR USAGE:
- * - lv_font_montserrat_24: Standard text and button labels
- * - lv_font_montserrat_32: Button symbols (OK, CLOSE, PLUS, MINUS)
- * - lv_font_montserrat_36: Screen titles
- * - lv_font_montserrat_56: Large weight displays
+ * - THEME_FONT_ROW (24): row labels, segments and button labels
+ * - THEME_FONT_BODY (22): descriptions, data rows, dialog messages
+ * - THEME_FONT_SECTION / _CAPTION / _NAV / _STATUS (20): section labels, captions, menubar, status lines
+ * - THEME_FONT_TITLE / _SYMBOL / _DISPLAY_NAME (28): dialog headlines, glyph buttons, profile names
+ * - THEME_FONT_DISPLAY_VALUE (56): large weight displays
+ * (see the watchOS mapping in src/config/theme.h)
  * 
  * JOG ACCELERATION STAGES:
  * - Stage 1 (0-2s): 1.0g/s (100ms intervals, 1x multiplier)

@@ -26,9 +26,9 @@ void EditScreen::create() {
 
     create_profile_label(screen, &profile_label, &weight_label);
 
-    create_dual_button_row(screen, &minus_btn, &plus_btn, LV_SYMBOL_MINUS, LV_SYMBOL_PLUS, lv_color_hex(THEME_COLOR_PRIMARY), lv_color_hex(THEME_COLOR_PRIMARY), 100, &lv_font_montserrat_32);
+    create_dual_button_row(screen, &minus_btn, &plus_btn, LV_SYMBOL_MINUS, LV_SYMBOL_PLUS, lv_color_hex(THEME_COLOR_PRIMARY), lv_color_hex(THEME_COLOR_PRIMARY), 100, THEME_FONT_SYMBOL);
 
-    save_btn = create_button(screen, LV_SYMBOL_OK, lv_color_hex(THEME_COLOR_SUCCESS), 260, 80, &lv_font_montserrat_32);
+    save_btn = create_button(screen, LV_SYMBOL_OK, lv_color_hex(THEME_COLOR_SUCCESS), 260, 80, THEME_FONT_SYMBOL);
 
     visible = false;
     mode = GrindMode::WEIGHT;

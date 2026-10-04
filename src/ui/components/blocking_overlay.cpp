@@ -33,13 +33,13 @@ void BlockingOperationOverlay::init() {
     
     // Create main label
     label = lv_label_create(content);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(label, THEME_FONT_TITLE, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t * wait_label = lv_label_create(content);
     lv_label_set_text(wait_label, "Please Wait...");
-    lv_obj_set_style_text_font(wait_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(wait_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(wait_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(wait_label, LV_TEXT_ALIGN_CENTER, 0);
     

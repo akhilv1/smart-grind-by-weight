@@ -34,7 +34,7 @@ void CalibrationScreen::create() {
 
     title_label = lv_label_create(screen);
     lv_label_set_text(title_label, "Calibration");
-    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_font(title_label, THEME_FONT_TITLE, 0);
     lv_obj_set_style_text_color(title_label, lv_color_hex(THEME_COLOR_SUCCESS), 0);
     lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(title_label, LV_PCT(100));
@@ -46,7 +46,7 @@ void CalibrationScreen::create() {
     // Instruction label below the headline
     instruction_label = lv_label_create(screen);
     lv_label_set_text(instruction_label, "Remove all weight");
-    lv_obj_set_style_text_font(instruction_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(instruction_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(instruction_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(instruction_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(instruction_label, LV_ALIGN_TOP_MID, 0, 64);
@@ -54,7 +54,7 @@ void CalibrationScreen::create() {
     // Weight label (center) - current weight or calibration weight
     weight_label = lv_label_create(screen);
     lv_label_set_text(weight_label, "0");
-    lv_obj_set_style_text_font(weight_label, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(weight_label, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(weight_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     // Sits between the 3-line instructions and the +/- row of the weight step
     lv_obj_align(weight_label, LV_ALIGN_TOP_MID, 0, 155);
@@ -62,7 +62,7 @@ void CalibrationScreen::create() {
     // Noise check information labels (hidden by default)
     noise_status_label = lv_label_create(screen);
     lv_label_set_text(noise_status_label, "Status: Checking...");
-    lv_obj_set_style_text_font(noise_status_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(noise_status_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(noise_status_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(noise_status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(noise_status_label, LV_ALIGN_TOP_MID, 0, 195);
@@ -70,14 +70,14 @@ void CalibrationScreen::create() {
 
     noise_metric_label = lv_label_create(screen);
     lv_label_set_text(noise_metric_label, "Std Dev: --");
-    lv_obj_set_style_text_font(noise_metric_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(noise_metric_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(noise_metric_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(noise_metric_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(noise_metric_label, LV_ALIGN_TOP_MID, 0, 240);
     lv_obj_add_flag(noise_metric_label, LV_OBJ_FLAG_HIDDEN);
 
     // +/- adjustment row sits just above the OK button (weight step only).
-    lv_obj_t* bottom_button_row = create_dual_button_row(screen, &minus_btn, &plus_btn, LV_SYMBOL_MINUS, LV_SYMBOL_PLUS, lv_color_hex(THEME_COLOR_PRIMARY), lv_color_hex(THEME_COLOR_PRIMARY), 80, &lv_font_montserrat_32);
+    lv_obj_t* bottom_button_row = create_dual_button_row(screen, &minus_btn, &plus_btn, LV_SYMBOL_MINUS, LV_SYMBOL_PLUS, lv_color_hex(THEME_COLOR_PRIMARY), lv_color_hex(THEME_COLOR_PRIMARY), 80, THEME_FONT_SYMBOL);
     lv_obj_align(bottom_button_row, LV_ALIGN_BOTTOM_MID, 0, -92);
     lv_obj_add_flag(minus_btn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(plus_btn, LV_OBJ_FLAG_HIDDEN);

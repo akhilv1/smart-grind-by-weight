@@ -22,7 +22,7 @@ void GrindingScreenChart::create() {
     // Profile name label
     profile_label = lv_label_create(screen);
     lv_label_set_text(profile_label, "DOUBLE");
-    lv_obj_set_style_text_font(profile_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(profile_label, THEME_FONT_DISPLAY_NAME, 0);
     lv_obj_set_style_text_color(profile_label, lv_color_hex(THEME_COLOR_SECONDARY), 0);
 
     // Create chart - use full screen width
@@ -96,12 +96,12 @@ void GrindingScreenChart::create() {
     
     // Create initial spans using correct API
     lv_span_t* current_span = lv_spangroup_add_span(weight_spangroup);
-    lv_style_set_text_font(lv_span_get_style(current_span), &lv_font_montserrat_56);
+    lv_style_set_text_font(lv_span_get_style(current_span), THEME_FONT_DISPLAY_VALUE);
     lv_style_set_text_color(lv_span_get_style(current_span), lv_color_hex(THEME_COLOR_TEXT_PRIMARY));
     lv_span_set_text(current_span, "0.0g");
     
     lv_span_t* separator_span = lv_spangroup_add_span(weight_spangroup);
-    lv_style_set_text_font(lv_span_get_style(separator_span), &lv_font_montserrat_24);
+    lv_style_set_text_font(lv_span_get_style(separator_span), THEME_FONT_STATUS);
     lv_style_set_text_color(lv_span_get_style(separator_span), lv_color_hex(THEME_COLOR_TEXT_SECONDARY));
     lv_span_set_text(separator_span, " / 18.0g");
     
