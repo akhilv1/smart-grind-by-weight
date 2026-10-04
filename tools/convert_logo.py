@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a logo PNG into an LVGL C-array image for the boot splash.
+"""Convert a logo PNG into an LVGL image for the boot splash.
 
 Accepts *any* PNG (any size or aspect, with or without alpha), auto-orients it
 from EXIF, resizes it so the width is at most --max-width px (height scaled to
@@ -14,6 +14,10 @@ in a new PNG and rebuild. Run it by hand only when you want a non-default size:
     python3 tools/convert_logo.py                         # defaults (max width 200)
     python3 tools/convert_logo.py --max-width 160
     python3 tools/convert_logo.py --orientation landscape # force a 90deg rotate
+
+With --format bin it instead writes an LVGL v9 binary image (<name>.bin): the
+file `python3 tools/grinder.py logo` uploads to the grinder over BLE as a custom
+logo that is stored on the device and survives OTA updates.
 
 Requires Pillow. LVGLImage.py ships with the LVGL managed component and is found
 automatically after a first dependency resolve / build.
@@ -85,6 +89,8 @@ def main() -> None:
     parser.add_argument("--orientation", choices=["auto", "portrait", "landscape"], default="auto",
                         help="Force an orientation (rotates 90deg on mismatch); 'auto' keeps EXIF orientation")
     parser.add_argument("--cf", default="RGB565A8", help="LVGL color format (keeps alpha for the black splash)")
+    parser.add_argument("--format", choices=["c", "bin"], default="c",
+                        help="c: C source for the firmware build (default); bin: binary image for BLE upload")
     args = parser.parse_args()
 
     input_path = (PROJECT_ROOT / args.input).resolve()
@@ -97,13 +103,13 @@ def main() -> None:
     lvgl_script = find_lvgl_image_script()
 
     with tempfile.TemporaryDirectory() as tmp:
-        # Name the temp file after --name so LVGLImage.py emits <name>.c
+        # Name the temp file after --name so LVGLImage.py emits <name>.c / <name>.bin
         resized = Path(tmp) / f"{args.name}.png"
         size = prepare_image(input_path, args.max_width, args.orientation, resized)
 
         cmd = [
             sys.executable, str(lvgl_script),
-            "--ofmt", "C",
+            "--ofmt", "BIN" if args.format == "bin" else "C",
             "--cf", args.cf,
             "--name", args.name,
             "-o", str(output_dir),
@@ -114,7 +120,12 @@ def main() -> None:
         if result.returncode != 0:
             sys.exit("ERROR: LVGLImage.py conversion failed")
 
-    print(f"convert_logo: generated {(output_dir / f'{args.name}.c').relative_to(PROJECT_ROOT)}")
+    generated = output_dir / f"{args.name}.{args.format}"
+    try:
+        shown = generated.relative_to(PROJECT_ROOT)
+    except ValueError:
+        shown = generated
+    print(f"convert_logo: generated {shown}")
 
 
 if __name__ == "__main__":

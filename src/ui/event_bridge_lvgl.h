@@ -69,6 +69,7 @@ public:
         LEARN_FORGET,
         AUTO_MODE_AUTO_START_TOGGLE,
         AUTO_LONG_PRESS,
+        LOGO_REMOVE,
         COUNT
     };
 

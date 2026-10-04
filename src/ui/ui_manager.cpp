@@ -5,6 +5,7 @@
 #include "../config/constants.h"
 #include "screens/calibration_screen.h"
 #include "../logging/grind_logging.h"
+#include "../system/custom_logo.h"
 #include "../controllers/grind_mode_traits.h"
 #include "../tasks/weight_sampling_task.h"
 #include <utility>
@@ -388,6 +389,7 @@ void UIManager::switch_to_state(UIState new_state) {
 
         case UIState::MENU:
             menu_screen.show();
+            menu_screen.update_logo_status(CustomLogo::instance().is_custom());
             break;
 
         case UIState::CALIBRATION: {

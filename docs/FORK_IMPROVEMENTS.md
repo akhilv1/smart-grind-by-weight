@@ -158,6 +158,12 @@ Instead of a single sleep timeout, the screensaver now steps down in two indepen
 1. **Dim after** (default 1 min) — either dims the current screen, or shows the boot logo centered on black at the dimmed brightness (a **Dim / Logo** style choice). Logo mode engages with a fade-to-dark followed by a slow logo fade-in.
 2. **Off after** (default 5 min) — the backlight turns fully off.
 
+For the last 30 seconds before the display turns off (at most half the off timeout, so short timeouts don't flash it right after a touch), the logo fades in on black at the dimmed brightness as a sign-off, in either style.
+
+### Custom logo that survives updates
+
+`python3 tools/grinder.py logo path/to/logo.png` converts any PNG the same way as the built-in logo and uploads it over BLE (new commands on the existing data service, CRC-checked, written to a temp file and only installed once its LVGL image header checks out). It lives on LittleFS, which OTA updates never touch, so personal or trademarked artwork stays on your grinder and out of the repository. The boot splash, the Logo screensaver and the sign-off all use it; **Settings → Display** shows whether a custom logo is installed and can remove it (`logo --clear` does the same). Upload transport and storage are adapted from quickcoffee's screensaver image upload.
+
 Both timeouts use discrete steps from 15 seconds to 30 minutes, plus **Never** to disable a stage. Any touch or weight activity restores the screen instantly, and the screensaver never engages while a grind is in progress. Settings are cached in RAM and refreshed on change, so nothing polls flash storage every UI tick.
 
 ---

@@ -11,6 +11,7 @@
 #include "../../controllers/grind_controller.h"
 #include "../../controllers/grind_mode_traits.h"
 #include "../../logging/grind_logging.h"
+#include "../../system/custom_logo.h"
 #include "../../system/diagnostics_controller.h"
 #include "../../system/statistics_manager.h"
 #include "../components/blocking_overlay.h"
@@ -35,6 +36,7 @@ void MenuUIController::register_events() {
     EventBridgeLVGL::register_handler(ET::MENU_RESET, [this](lv_event_t*) { handle_reset(); });
     EventBridgeLVGL::register_handler(ET::MENU_PURGE, [this](lv_event_t*) { handle_purge(); });
     EventBridgeLVGL::register_handler(ET::PORTAFILTER_FORGET, [this](lv_event_t* e) { handle_portafilter_forget(e); });
+    EventBridgeLVGL::register_handler(ET::LOGO_REMOVE, [this](lv_event_t*) { handle_logo_remove(); });
     EventBridgeLVGL::register_handler(ET::AUTO_MODE_AUTO_START_TOGGLE, [this](lv_event_t*) {
         lv_obj_t* toggle = ui_manager_ ? ui_manager_->menu_screen.get_auto_mode_auto_start_toggle() : nullptr;
         if (!toggle) return;
@@ -152,6 +154,23 @@ void MenuUIController::handle_portafilter_forget(lv_event_t* e) {
             if (ui_manager_ && ui_manager_->auto_mode_controller_) {
                 ui_manager_->auto_mode_controller_->detector().forget(index);
             }
+            return_to_menu();
+        },
+        "CANCEL",
+        [this]() { return_to_menu(); }
+    );
+}
+
+void MenuUIController::handle_logo_remove() {
+    if (!ui_manager_) return;
+
+    ui_manager_->show_confirmation(
+        "REMOVE LOGO",
+        "The uploaded logo will be deleted from the grinder and the built-in logo used instead.",
+        "REMOVE",
+        lv_color_hex(THEME_COLOR_ERROR),
+        [this]() {
+            CustomLogo::instance().remove();
             return_to_menu();
         },
         "CANCEL",

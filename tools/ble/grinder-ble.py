@@ -24,6 +24,7 @@ import asyncio
 import sys
 import os
 import struct
+import zlib
 import time
 import subprocess
 import tempfile
@@ -137,6 +138,16 @@ BLE_DATA_ERROR = 0x23
 
 DEVICE_NAME = "GrindByWeight"
 CHUNK_SIZE = 512
+
+# Custom logo upload (data control characteristic; see LOGO_* in src/config/bluetooth.h)
+BLE_LOGO_CMD_START = 0x30
+BLE_LOGO_CMD_DATA = 0x31
+BLE_LOGO_CMD_END = 0x32
+BLE_LOGO_CMD_ABORT = 0x33
+BLE_LOGO_CMD_DELETE = 0x34
+BLE_LOGO_STATUS_READY = 0x31
+BLE_LOGO_STATUS_SUCCESS = 0x33
+BLE_LOGO_STATUS_ERROR = 0x34
 DATA_CHUNK_SIZE = 500
 
 class GrinderBLETool:
@@ -300,6 +311,7 @@ class GrinderBLETool:
         if not data: return
         status = data[0]
         self.current_data_status = status
+        self.status_updated.set()
         
         if status == BLE_DATA_EXPORTING:
             # Only show ESP32 progress if it's meaningful (> 0%)
@@ -497,6 +509,73 @@ class GrinderBLETool:
             return await self.wait_for_ota_status(BLE_OTA_SUCCESS, timeout=30)
         except BleakError:
             return True
+
+    # === Custom Logo ===
+    async def wait_for_logo_status(self, timeout: float) -> Optional[int]:
+        """Wait for the next logo status notification (READY / SUCCESS / ERROR)."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.current_data_status in (BLE_LOGO_STATUS_READY, BLE_LOGO_STATUS_SUCCESS, BLE_LOGO_STATUS_ERROR):
+                return self.current_data_status
+            self.status_updated.clear()
+            try:
+                await asyncio.wait_for(self.status_updated.wait(), timeout=0.5)
+            except asyncio.TimeoutError:
+                pass
+        return None
+
+    async def send_logo_command(self, payload: bytes, timeout: float = 10) -> Optional[int]:
+        self.current_data_status = BLE_DATA_IDLE
+        await self.client.write_gatt_char(BLE_DATA_CONTROL_CHAR_UUID, payload, response=True)
+        return await self.wait_for_logo_status(timeout)
+
+    async def upload_logo(self, logo_path: str) -> bool:
+        """Upload an LVGL binary logo (from convert_logo.py --format bin) to the grinder."""
+        data = Path(logo_path).read_bytes()
+        crc = zlib.crc32(data) & 0xFFFFFFFF  # Same as the device's esp_rom_crc32_le chain from 0
+        self.safe_print(f"[INFO] Uploading logo: {len(data) // 1024} KB")
+
+        status = await self.send_logo_command(bytes([BLE_LOGO_CMD_START]) + struct.pack('<II', len(data), crc))
+        if status != BLE_LOGO_STATUS_READY:
+            self.safe_print("[ERROR] Grinder refused the upload (grinding, OTA running, or image too large)")
+            return False
+
+        # Each chunk is a write with response, so BLE paces the transfer
+        char = self.client.services.get_characteristic(BLE_DATA_CONTROL_CHAR_UUID)
+        chunk_size = max(20, min(CHUNK_SIZE, char.max_write_without_response_size) - 1)
+        start_time = time.time()
+        try:
+            for offset in range(0, len(data), chunk_size):
+                chunk = data[offset:offset + chunk_size]
+                await self.client.write_gatt_char(BLE_DATA_CONTROL_CHAR_UUID, bytes([BLE_LOGO_CMD_DATA]) + chunk,
+                                                  response=True)
+                if self.current_data_status == BLE_LOGO_STATUS_ERROR:
+                    self.safe_print("\n[ERROR] Grinder rejected a chunk (filesystem full?)")
+                    return False
+                self._update_status(f"[UPLOAD] Uploading logo: {int(100 * (offset + len(chunk)) / len(data))}%")
+        except Exception as e:
+            self.safe_print(f"\n[ERROR] Upload interrupted: {e}")
+            try:
+                await self.client.write_gatt_char(BLE_DATA_CONTROL_CHAR_UUID, bytes([BLE_LOGO_CMD_ABORT]), response=True)
+            except Exception:
+                pass
+            return False
+
+        self.safe_print(f"\n[INFO] Sent in {time.time() - start_time:.1f}s, verifying...")
+        status = await self.send_logo_command(bytes([BLE_LOGO_CMD_END]), timeout=15)
+        if status == BLE_LOGO_STATUS_SUCCESS:
+            self.safe_print("[OK] Logo installed. It shows on the next boot and before the screen sleeps.")
+            return True
+        self.safe_print("[ERROR] Grinder rejected the logo (checksum or image format)")
+        return False
+
+    async def delete_logo(self) -> bool:
+        status = await self.send_logo_command(bytes([BLE_LOGO_CMD_DELETE]))
+        if status == BLE_LOGO_STATUS_SUCCESS:
+            self.safe_print("[OK] Custom logo removed; the built-in logo is back.")
+            return True
+        self.safe_print("[ERROR] Could not remove the custom logo")
+        return False
 
     # === Data Export Functions (Refactored) ===
     async def get_session_count(self) -> int:
@@ -1202,8 +1281,12 @@ async def main():
     sysinfo_parser = subparsers.add_parser('info', help='Get comprehensive device system information')
     diagnostics_parser = subparsers.add_parser('diagnostics', help='Get comprehensive diagnostic report for GitHub issues')
     diagnostics_parser.add_argument('--save', metavar='FILE', help='Save report to file (default: print to console)')
+    logo_parser = subparsers.add_parser('logo', help='Upload a custom logo (.bin from convert_logo.py --format bin)')
+    logo_parser.add_argument('logo', nargs='?', help='Path to the LVGL binary logo')
+    logo_parser.add_argument('--clear', action='store_true', help='Remove the custom logo instead')
 
-    for p in [upload_parser, export_parser, analyse_parser, connect_parser, debug_parser, sysinfo_parser, diagnostics_parser]:
+    for p in [upload_parser, export_parser, analyse_parser, connect_parser, debug_parser, sysinfo_parser, diagnostics_parser,
+              logo_parser]:
         p.add_argument('--device', default=DEVICE_NAME, help='Device name to connect to')
 
     args = parser.parse_args()
@@ -1213,7 +1296,7 @@ async def main():
         if args.command == 'scan':
             await tool.scan_devices()
         
-        elif args.command in ['upload', 'export', 'analyse', 'connect', 'debug', 'info', 'diagnostics']:
+        elif args.command in ['upload', 'export', 'analyse', 'connect', 'debug', 'info', 'diagnostics', 'logo']:
             if not await tool.connect_to_device(args.device): return 1
 
             if args.command == 'upload':
@@ -1222,6 +1305,10 @@ async def main():
                     tool.safe_print("[ERROR] No firmware file found.")
                     return 1
                 await tool.upload_firmware(firmware_path, args.force_full)
+            elif args.command == 'logo':
+                ok = await tool.delete_logo() if args.clear else await tool.upload_logo(args.logo)
+                await tool.disconnect()
+                return 0 if ok else 1
             elif args.command == 'export':
                 await tool.export_data(args.db)
             elif args.command == 'analyse':

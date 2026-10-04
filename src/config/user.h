@@ -59,6 +59,7 @@
 #define USER_SCREEN_SAVER_MODE_LOGO 1                                          // Show the boot logo on black (at dimmed brightness)
 #define USER_SCREEN_SAVER_MODE_DEFAULT USER_SCREEN_SAVER_MODE_DIM             // Default screensaver style
 #define USER_SCREEN_SAVER_TIMEOUT_NEVER_MS 0                                   // Sentinel timeout meaning "never"
+#define USER_SCREEN_SIGNOFF_LOGO_MS 30000                                      // Show the logo for this long before the display turns off (capped at half the off timeout)
 
 //------------------------------------------------------------------------------
 // BOOT SPLASH

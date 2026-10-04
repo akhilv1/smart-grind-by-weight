@@ -9,6 +9,7 @@ import asyncio
 import os
 import sys
 import subprocess
+import tempfile
 import webbrowser
 import platform
 import venv
@@ -293,6 +294,41 @@ class GrinderTool:
         
         return await self.run_async_command(cmd)
     
+    async def cmd_logo(self, args: argparse.Namespace) -> int:
+        """Upload a custom boot/screensaver logo over BLE, or remove it.
+
+        The logo is stored on the grinder's filesystem, so OTA updates keep it and
+        it never has to be committed. Any PNG works: it is converted exactly like
+        the built-in logo (max 200 px wide, transparency kept, shown on black).
+        """
+        self.print_header("Custom Logo")
+        if not self.check_venv():
+            return 1
+
+        cmd = [str(self.venv_python), str(self.ble_tool), "logo"]
+        if getattr(args, "device", None):
+            cmd.extend(["--device", args.device])
+
+        if args.clear:
+            return await self.run_async_command(cmd + ["--clear"])
+
+        if not args.image:
+            self.print_error("Give a PNG to upload, or --clear to remove the custom logo")
+            return 1
+        image = Path(args.image).expanduser().resolve()
+        if not image.exists():
+            self.print_error(f"Image not found: {image}")
+            return 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            convert = [str(self.venv_python), str(self.script_dir / "convert_logo.py"),
+                       "--input", str(image), "--output-dir", tmp, "--name", "logo", "--format", "bin",
+                       "--max-width", str(args.max_width)]
+            if subprocess.run(convert).returncode != 0:
+                self.print_error("Could not convert the image")
+                return 1
+            return await self.run_async_command(cmd + [str(Path(tmp) / "logo.bin")])
+
     async def cmd_build_upload(self, args: argparse.Namespace) -> int:
         """Build firmware and upload via BLE."""
         build_result = self.cmd_build(args)
@@ -602,6 +638,11 @@ def create_parser() -> argparse.ArgumentParser:
     monitor_parser = subparsers.add_parser('monitor', help='Monitor live debug output via BLE (alias for debug)')
     monitor_parser.add_argument('--device', default='GrindByWeight', help='Specify device name')
     clean_parser = subparsers.add_parser('clean', help='Clean build artifacts')
+    logo_parser = subparsers.add_parser('logo', help='Upload a custom boot/screensaver logo over BLE (kept across OTA updates)')
+    logo_parser.add_argument('image', nargs='?', help='PNG to upload (any size; scaled to fit, transparency kept)')
+    logo_parser.add_argument('--clear', action='store_true', help='Remove the custom logo and use the built-in one')
+    logo_parser.add_argument('--max-width', type=int, default=200, help='Maximum logo width in px (default 200)')
+    logo_parser.add_argument('--device', default='GrindByWeight', help='Specify device name')
     sim_parser = subparsers.add_parser('sim', help='Build and serve the browser UI simulator (needs ~/emsdk)')
     sim_parser.add_argument('--port', type=int, default=8080, help='Local port to serve on (default 8080)')
     sim_parser.add_argument('--no-serve', action='store_true', help='Build only, do not start the web server')
@@ -649,6 +690,8 @@ async def main():
             return tool.cmd_clean(args)
         elif args.command == 'sim':
             return tool.cmd_sim(args)
+        elif args.command == 'logo':
+            return await tool.cmd_logo(args)
         elif args.command == 'release':
             return tool.cmd_release(args)
         else:

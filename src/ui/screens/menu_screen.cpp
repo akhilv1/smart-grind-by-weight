@@ -332,6 +332,17 @@ void MenuScreen::create_display_page(lv_obj_t* parent) {
                      lv_color_hex(THEME_COLOR_ACCENT), 0, kScreensaverTimeoutStepCount - 1);
     create_slider_row(parent, "Off after", &screensaver_off_timeout_label, &screensaver_off_timeout_slider,
                      lv_color_hex(THEME_COLOR_ACCENT), 0, kScreensaverTimeoutStepCount - 1);
+    create_description_label(parent, "The logo shows for the last 30s before off.");
+
+    // Logo shown on the boot splash and screensaver: uploaded over BLE (kept on the
+    // grinder's filesystem, so updates don't replace it) or the built-in one
+    create_separator(parent, "Logo");
+    logo_status_label = create_description_label(parent, "");
+    logo_remove_button = create_button(parent, "Remove custom logo", lv_color_hex(THEME_COLOR_SURFACE));
+    lv_obj_set_style_margin_bottom(logo_remove_button, THEME_ROW_GAP_PX, 0);
+    lv_obj_add_event_cb(logo_remove_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::LOGO_REMOVE)));
+    update_logo_status(false);
 
     // Register events for the sliders (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -1334,5 +1345,19 @@ void MenuScreen::update_auto_mode_toggles() {
         lv_obj_add_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
     } else {
         lv_obj_clear_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
+    }
+}
+
+void MenuScreen::update_logo_status(bool custom_logo_installed) {
+    if (!logo_status_label || !logo_remove_button) {
+        return;
+    }
+    lv_label_set_text(logo_status_label, custom_logo_installed
+                                             ? "Custom logo installed. Updates keep it."
+                                             : "Built-in logo. Upload your own with grinder.py logo.");
+    if (custom_logo_installed) {
+        lv_obj_clear_flag(logo_remove_button, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(logo_remove_button, LV_OBJ_FLAG_HIDDEN);
     }
 }

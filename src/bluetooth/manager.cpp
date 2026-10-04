@@ -1,4 +1,5 @@
 #include "manager.h"
+#include "../system/custom_logo.h"
 #include <algorithm>
 #include <cstdarg>
 #include "arduino_compat.h"
@@ -347,6 +348,10 @@ void BluetoothManager::disable() {
     
     if (ota_handler.is_ota_active()) {
         ota_handler.abort_ota();
+    }
+
+    if (logo_upload_.is_active()) {
+        logo_upload_.abort();  // A partial logo is never installed
     }
     
     if (data_export_in_progress) {
@@ -918,9 +923,68 @@ void BluetoothManager::handle_data_control_command(BLECharacteristic* characteri
             }
             break;
             
+        case BLE_LOGO_CMD_START:
+        case BLE_LOGO_CMD_DATA:
+        case BLE_LOGO_CMD_END:
+        case BLE_LOGO_CMD_ABORT:
+        case BLE_LOGO_CMD_DELETE:
+            handle_logo_command(command, reinterpret_cast<const uint8_t*>(data.c_str()) + 1, data.length() - 1);
+            break;
+
         default:
             log("Bluetooth Data: Unknown command: 0x%02X\n", command);
             set_data_status(BLE_DATA_ERROR);
+            break;
+    }
+}
+
+void BluetoothManager::notify_logo_status(BLELogoStatus status) {
+    if (data_status_characteristic) {
+        uint8_t status_value = static_cast<uint8_t>(status);
+        data_status_characteristic->setValue(&status_value, 1);
+        data_status_characteristic->notify();
+    }
+}
+
+// Custom logo upload (see LOGO_* in config/bluetooth.h). DATA chunks are acked by
+// the write response itself; only START, END, ABORT/DELETE and errors notify.
+void BluetoothManager::handle_logo_command(uint8_t command, const uint8_t* payload, size_t payload_size) {
+    switch (command) {
+        case BLE_LOGO_CMD_START: {
+            // Same lockout as OTA: no flash writes while the grinder is running
+            if (grind_controller_ && grind_controller_->is_active()) {
+                log("Bluetooth Logo: REJECTED - grind in progress, retry when idle\n");
+                notify_logo_status(BLE_LOGO_STATUS_ERROR);
+                break;
+            }
+            if (ota_handler.is_ota_active() || payload_size < 8) {
+                notify_logo_status(BLE_LOGO_STATUS_ERROR);
+                break;
+            }
+            uint32_t size = 0;
+            uint32_t crc32 = 0;
+            memcpy(&size, payload, 4);
+            memcpy(&crc32, payload + 4, 4);
+            notify_logo_status(logo_upload_.start(size, crc32) ? BLE_LOGO_STATUS_READY : BLE_LOGO_STATUS_ERROR);
+            break;
+        }
+        case BLE_LOGO_CMD_DATA:
+            if (!logo_upload_.append(payload, payload_size)) {
+                notify_logo_status(BLE_LOGO_STATUS_ERROR);
+            }
+            break;
+        case BLE_LOGO_CMD_END:
+            notify_logo_status(logo_upload_.finish() ? BLE_LOGO_STATUS_SUCCESS : BLE_LOGO_STATUS_ERROR);
+            break;
+        case BLE_LOGO_CMD_ABORT:
+            logo_upload_.abort();
+            notify_logo_status(BLE_LOGO_STATUS_SUCCESS);
+            break;
+        case BLE_LOGO_CMD_DELETE:
+            logo_upload_.abort();
+            notify_logo_status(CustomLogo::instance().remove() ? BLE_LOGO_STATUS_SUCCESS : BLE_LOGO_STATUS_ERROR);
+            break;
+        default:
             break;
     }
 }
@@ -940,6 +1004,10 @@ void BluetoothManager::onDisconnect(BLEServer* server) {
     
     if (ota_handler.is_ota_active()) {
         ota_handler.abort_ota();
+    }
+
+    if (logo_upload_.is_active()) {
+        logo_upload_.abort();  // A partial logo is never installed
     }
     
     if (data_export_in_progress) {

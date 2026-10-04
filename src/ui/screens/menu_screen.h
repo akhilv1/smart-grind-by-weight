@@ -75,6 +75,8 @@ private:
     lv_obj_t* grind_freshness_hours_slider;
     lv_obj_t* grind_freshness_hours_label;
     lv_obj_t* portafilter_list = nullptr;   // Rebuilt from the detector each time Settings opens
+    lv_obj_t* logo_status_label = nullptr;  // Display page: custom vs built-in logo
+    lv_obj_t* logo_remove_button = nullptr;
     const PortafilterDetector* portafilter_detector = nullptr;
 
     // Tools entries
@@ -134,6 +136,8 @@ public:
     void update_grind_freshness_hours_label(float hours);
     void set_portafilter_detector(const PortafilterDetector* detector) { portafilter_detector = detector; }
     void update_portafilter_list();
+    // Display page: reflect whether an uploaded logo is installed
+    void update_logo_status(bool custom_logo_installed);
     void update_auto_mode_toggles();
     lv_obj_t* get_auto_mode_auto_start_toggle() const { return auto_mode_auto_start_toggle; }
 

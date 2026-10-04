@@ -22,6 +22,7 @@ python3 tools/grinder.py analyze
 - `python3 tools/grinder.py scan` - Scan for BLE devices
 - `python3 tools/grinder.py info` - Get device system information
 - `python3 tools/grinder.py clean` - Clean build artifacts
+- `python3 tools/grinder.py logo <png>` - Upload a custom boot/screensaver logo over BLE (stored on LittleFS, survives OTA; `--clear` removes it)
 - `python3 tools/grinder.py sim` - Build and serve the browser UI simulator (`sim-web/`, needs Emscripten in `~/emsdk`); check UI changes here before an OTA
 
 ## Architecture
@@ -98,6 +99,8 @@ python3 tools/grinder.py analyze
 - **Purging**: Radio buttons (Prime/Purge) and Amount slider (0.1g-5.0g)
 - **Preferences**: `swipe.enabled` (boolean), `grind_mode` (0=Weight, 1=Time), `chute_mode` (0=Prime, 1=Purge), `chute_amount_g` (float)
 - **Behavior**: Swipe gestures only work when enabled; direct mode selection always works
+
+**Custom logo:** `CustomLogo` (`src/system/custom_logo`) supplies the logo for the boot splash, Logo screensaver and pre-sleep sign-off: `/logo.bin` on LittleFS (LVGL v9 binary, RGB565A8, uploaded via `LogoUploadHandler` on the data service, commands 0x30-0x34) or the built-in `boot_logo`. Never commit personal or trademarked artwork; the repo ships the neutral logo only. Factory reset (NVS erase) keeps the logo.
 
 **Design system (`src/config/theme.h`):** use the role tokens, never literal colors, fonts or sizes. The browsable reference is the Grinder UI Handbook artifact.
 - Colors: background `0x000000`, surface `0x1C1C1E` (cards, tracks), primary `0xFF453A` (grind action, weight mode), accent/selected `0x0A84FF` (on toggles, selected segments, sliders, AUTO mark, time mode), detecting `0xFFD60A`, success `0x30D158`, warning `0xFF9F0A`

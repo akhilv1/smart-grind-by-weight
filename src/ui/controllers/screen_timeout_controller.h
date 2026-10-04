@@ -8,10 +8,13 @@
 class UIManager;
 class DisplayManager;
 
-// Two-stage screensaver driven by touch/weight inactivity:
-//   stage 1 (dim timeout): dim the backlight — plain dim, or the boot logo on an
+// Screensaver driven by touch/weight inactivity:
+//   stage 1 (dim timeout): dim the backlight — plain dim, or the logo on an
 //                          opaque black overlay (mode), at the dimmed brightness
+//   sign-off:              the logo on black for the last USER_SCREEN_SIGNOFF_LOGO_MS
+//                          (at most half the off timeout) before the display turns off
 //   stage 2 (off timeout): backlight fully off
+// The logo is the uploaded custom logo when one is installed (CustomLogo).
 // Any activity restores normal brightness and removes the overlay. Never engages
 // while grinding.
 class ScreenTimeoutController {
@@ -27,7 +30,7 @@ public:
     void refresh_settings();
 
 private:
-    enum class Stage { ACTIVE, DIMMED, OFF };
+    enum class Stage { ACTIVE, DIMMED, SIGNOFF, OFF };
 
     void apply_stage(Stage stage, DisplayManager* display);
     void show_logo_overlay();

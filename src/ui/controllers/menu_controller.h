@@ -15,6 +15,7 @@ public:
     void handle_reset();
     void handle_purge();
     void handle_portafilter_forget(lv_event_t* e);
+    void handle_logo_remove();
     void handle_motor_test();
     void handle_autotune();
     void handle_back();

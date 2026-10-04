@@ -166,4 +166,4 @@ In this project, that's most obvious when at state management - it's a bit clutt
 
 This project modifies your grinder's electronics; doing so may void your warranty. Proceed at your own risk.
 
-**Custom boot logo:** the repository ships a neutral boot logo. To use your own artwork locally, replace `assets/boot_logo.png` with any PNG (it is auto-converted at build time) — keep personal artwork out of commits.
+**Custom boot logo:** the repository ships a neutral boot logo. To use your own artwork, upload it to the grinder over Bluetooth with `python3 tools/grinder.py logo path/to/logo.png` (any PNG; scaled to fit, transparency kept). It is stored on the grinder itself, so firmware updates keep it and it never needs to be committed; `logo --clear` or **Settings → Display → Remove custom logo** brings the built-in one back.
