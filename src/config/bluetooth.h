@@ -79,3 +79,24 @@
 //------------------------------------------------------------------------------
 #define BLE_NORMAL_CPU_FREQ_MHZ 240                                            // Normal CPU frequency during BLE operations
 #define BLE_REDUCED_CPU_FREQ_MHZ 240                                           // Reduced CPU frequency for BLE mode
+
+//------------------------------------------------------------------------------
+// CUSTOM LOGO UPLOAD (via the Data Service)
+//------------------------------------------------------------------------------
+// A personal boot/screensaver logo can be uploaded over BLE and is stored on
+// LittleFS, which OTA updates never touch. Commands and chunks go to the data
+// control characteristic ([cmd][payload], write with response for flow control);
+// status bytes come back as data status notifications. 0x30+ avoids the data
+// export commands (0x11-0x15) and statuses (0x20-0x23).
+//
+//   0x30 START  [size:u32 LE][crc32:u32 LE]  begin an upload
+//   0x31 DATA   [bytes...]                   next chunk, in order
+//   0x32 END                                 verify size + CRC + image header, install
+//   0x33 ABORT                               discard a partial upload
+//   0x34 DELETE                              remove the custom logo (built-in returns)
+//
+// The file is an LVGL v9 binary image (12-byte lv_image_header_t + pixels),
+// RGB565A8, at most the panel size - tools/grinder.py logo produces it.
+#define LOGO_FILE_PATH "/logo.bin"                                             // Installed custom logo on LittleFS
+#define LOGO_TEMP_FILE_PATH "/logo.bin.tmp"                                    // Upload in progress
+#define LOGO_MAX_FILE_BYTES (12 + HW_DISPLAY_WIDTH_PX * HW_DISPLAY_HEIGHT_PX * 3) // Header + full-panel RGB565A8

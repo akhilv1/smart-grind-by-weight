@@ -33,3 +33,6 @@ failed_session_*.bin
 # Local (uncommitted) boot logo + product identity overrides — see README trademark note
 assets/*.local.png
 src/config/*.local.h
+
+# Browser simulator build output (python3 tools/grinder.py sim)
+sim-web/build/

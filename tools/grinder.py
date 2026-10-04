@@ -9,6 +9,8 @@ import asyncio
 import os
 import sys
 import subprocess
+import tempfile
+import webbrowser
 import platform
 import venv
 from pathlib import Path
@@ -292,6 +294,41 @@ class GrinderTool:
         
         return await self.run_async_command(cmd)
     
+    async def cmd_logo(self, args: argparse.Namespace) -> int:
+        """Upload a custom boot/screensaver logo over BLE, or remove it.
+
+        The logo is stored on the grinder's filesystem, so OTA updates keep it and
+        it never has to be committed. Any PNG works: it is converted exactly like
+        the built-in logo (max 200 px wide, transparency kept, shown on black).
+        """
+        self.print_header("Custom Logo")
+        if not self.check_venv():
+            return 1
+
+        cmd = [str(self.venv_python), str(self.ble_tool), "logo"]
+        if getattr(args, "device", None):
+            cmd.extend(["--device", args.device])
+
+        if args.clear:
+            return await self.run_async_command(cmd + ["--clear"])
+
+        if not args.image:
+            self.print_error("Give a PNG to upload, or --clear to remove the custom logo")
+            return 1
+        image = Path(args.image).expanduser().resolve()
+        if not image.exists():
+            self.print_error(f"Image not found: {image}")
+            return 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            convert = [str(self.venv_python), str(self.script_dir / "convert_logo.py"),
+                       "--input", str(image), "--output-dir", tmp, "--name", "logo", "--format", "bin",
+                       "--max-width", str(args.max_width)]
+            if subprocess.run(convert).returncode != 0:
+                self.print_error("Could not convert the image")
+                return 1
+            return await self.run_async_command(cmd + [str(Path(tmp) / "logo.bin")])
+
     async def cmd_build_upload(self, args: argparse.Namespace) -> int:
         """Build firmware and upload via BLE."""
         build_result = self.cmd_build(args)
@@ -475,6 +512,44 @@ class GrinderTool:
         self.print_success("Build artifacts cleaned")
         return 0
     
+    def cmd_sim(self, args: argparse.Namespace) -> int:
+        """Build the browser LVGL simulator (sim-web/) and serve it on localhost."""
+        self.print_header("Browser Simulator")
+
+        sim_dir = self.project_dir / "sim-web"
+        build_dir = sim_dir / "build"
+        emsdk_root = Path(os.environ.get("EMSDK", str(Path.home() / "emsdk")))
+        emsdk_env = emsdk_root / "emsdk_env.sh"
+        if not emsdk_env.exists():
+            self.print_error(f"Emscripten SDK not found at {emsdk_root}")
+            self.print_info("Install it once: git clone https://github.com/emscripten-core/emsdk.git ~/emsdk && "
+                            "~/emsdk/emsdk install latest && ~/emsdk/emsdk activate latest")
+            return 1
+
+        # Configure once; later runs only rebuild what changed
+        configure = ""
+        if not (build_dir / "CMakeCache.txt").exists():
+            configure = f'emcmake cmake -S "{sim_dir}" -B "{build_dir}" && '
+        script = f'source "{emsdk_env}" >/dev/null 2>&1 && {configure}cmake --build "{build_dir}" -j'
+        if subprocess.run(["bash", "-c", script]).returncode != 0:
+            self.print_error("Simulator build failed (see sim-web/README.md, 'If the menu build breaks')")
+            return 1
+        self.print_success("Simulator built")
+
+        if args.no_serve:
+            return 0
+
+        url = f"http://localhost:{args.port}/smart-grind-web-sim.html"
+        self.print_info(f"Serving {url}  (Ctrl+C to stop)")
+        if not args.no_open:
+            webbrowser.open(url)
+        try:
+            subprocess.run([sys.executable, "-m", "http.server", str(args.port),
+                            "--bind", "127.0.0.1", "--directory", str(build_dir)])
+        except KeyboardInterrupt:
+            pass
+        return 0
+
     def cmd_release(self, args: argparse.Namespace) -> int:
         """Create a tagged release using the release helper script."""
         self.print_header("Creating Tagged Release")
@@ -563,6 +638,15 @@ def create_parser() -> argparse.ArgumentParser:
     monitor_parser = subparsers.add_parser('monitor', help='Monitor live debug output via BLE (alias for debug)')
     monitor_parser.add_argument('--device', default='GrindByWeight', help='Specify device name')
     clean_parser = subparsers.add_parser('clean', help='Clean build artifacts')
+    logo_parser = subparsers.add_parser('logo', help='Upload a custom boot/screensaver logo over BLE (kept across OTA updates)')
+    logo_parser.add_argument('image', nargs='?', help='PNG to upload (any size; scaled to fit, transparency kept)')
+    logo_parser.add_argument('--clear', action='store_true', help='Remove the custom logo and use the built-in one')
+    logo_parser.add_argument('--max-width', type=int, default=200, help='Maximum logo width in px (default 200)')
+    logo_parser.add_argument('--device', default='GrindByWeight', help='Specify device name')
+    sim_parser = subparsers.add_parser('sim', help='Build and serve the browser UI simulator (needs ~/emsdk)')
+    sim_parser.add_argument('--port', type=int, default=8080, help='Local port to serve on (default 8080)')
+    sim_parser.add_argument('--no-serve', action='store_true', help='Build only, do not start the web server')
+    sim_parser.add_argument('--no-open', action='store_true', help='Do not open a browser tab')
     release_parser = subparsers.add_parser('release', help='Create tagged release (triggers automated GitHub release)')
     
     return parser
@@ -604,6 +688,10 @@ async def main():
             return tool.cmd_install(args)
         elif args.command == 'clean':
             return tool.cmd_clean(args)
+        elif args.command == 'sim':
+            return tool.cmd_sim(args)
+        elif args.command == 'logo':
+            return await tool.cmd_logo(args)
         elif args.command == 'release':
             return tool.cmd_release(args)
         else:

@@ -28,7 +28,7 @@ void OTAScreen::create() {
     // Title label
     title_label = lv_label_create(screen);
     lv_label_set_text(title_label, "Updating");
-    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(title_label, THEME_FONT_DISPLAY_NAME, 0);
     lv_obj_set_style_text_color(title_label, lv_color_hex(THEME_COLOR_SECONDARY), 0);
 
     // Progress arc
@@ -46,14 +46,14 @@ void OTAScreen::create() {
     // Percentage label (inside arc)
     percentage_label = lv_label_create(progress_arc);
     lv_label_set_text(percentage_label, "0%");
-    lv_obj_set_style_text_font(percentage_label, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(percentage_label, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(percentage_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_center(percentage_label);
     
     // Status label below the arc
     status_label = lv_label_create(screen);
     lv_label_set_text(status_label, "Receiving update....");
-    lv_obj_set_style_text_font(status_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(status_label, THEME_FONT_STATUS, 0);
     lv_obj_set_style_text_color(status_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(status_label, LV_PCT(100));

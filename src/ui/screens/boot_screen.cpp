@@ -1,6 +1,6 @@
 #include "boot_screen.h"
 #include "../../config/constants.h"
-#include "../assets/boot_logo.h"
+#include "../../system/custom_logo.h"
 
 void BootScreen::create() {
     screen = lv_obj_create(lv_scr_act());
@@ -16,7 +16,8 @@ void BootScreen::create() {
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_CLICKABLE);
 
     logo = lv_image_create(screen);
-    lv_image_set_src(logo, &boot_logo);
+    // The uploaded logo if there is one (survives OTA), else the built-in one
+    lv_image_set_src(logo, CustomLogo::instance().image());
     lv_obj_align(logo, LV_ALIGN_CENTER, USER_BOOT_LOGO_OFFSET_X, USER_BOOT_LOGO_OFFSET_Y);
     // Start invisible; the boot sequence fades the logo in on its first tick
     lv_obj_set_style_opa(logo, LV_OPA_TRANSP, LV_PART_MAIN);

@@ -28,6 +28,20 @@ static void back_event_handler(lv_event_t * e)
     }
 }
 
+// Every Settings sub-page: one centered column at the content width, vertical scroll,
+// and the same top/bottom breathing room
+static void setup_settings_page(lv_obj_t* page) {
+    lv_obj_set_layout(page, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(page, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_hor(page, 0, 0);
+    lv_obj_set_style_pad_top(page, 4, 0);
+    lv_obj_set_style_pad_bottom(page, THEME_SECTION_GAP_PX, 0);
+    lv_obj_set_style_pad_gap(page, 0, 0);
+    lv_obj_set_scroll_dir(page, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(page, LV_SCROLLBAR_MODE_AUTO);
+}
+
 void MenuScreen::create(BluetoothManager* bluetooth, GrindController* grind_ctrl, GrindingScreen* grind_screen, class HardwareManager* hw_mgr, DiagnosticsController* diag_ctrl) {
     bluetooth_manager = bluetooth;
     grind_controller = grind_ctrl;
@@ -92,12 +106,7 @@ void MenuScreen::create_menu_ui() {
 
     // Create main page last
     lv_obj_t* main_page = lv_menu_page_create(menu, "Menu");
-    lv_obj_set_layout(main_page, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(main_page, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(main_page, 0, 0);
-    lv_obj_set_style_pad_gap(main_page, 0, 0);
-    lv_obj_set_scroll_dir(main_page, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(main_page, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(main_page);
 
     // Create sub-pages with titles
     info_page = lv_menu_page_create(menu, "Info");
@@ -199,33 +208,24 @@ void MenuScreen::create_menu_ui() {
 }
 
 void MenuScreen::create_info_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(parent, 0, 0);
-    
-    // Enable vertical scrolling for the info page content
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
     char build_info[64];
     snprintf(build_info, sizeof(build_info), "#%d", BUILD_NUMBER);
 
-    create_description_label(parent, "Device metrics and current status snapshot.");
-
-    create_static_data_label(parent, "Firmware:", "v" BUILD_FIRMWARE_VERSION);
-    create_static_data_label(parent, "Build:", build_info);    
+    create_static_data_label(parent, "Firmware", "v" BUILD_FIRMWARE_VERSION);
+    create_static_data_label(parent, "Build", build_info);    
     
     create_separator(parent);
     
-    create_data_label(parent, "Instant:", &instant_label);
-    create_data_label(parent, "Samples:", &samples_label);
-    create_data_label(parent, "Raw:", &raw_label);
+    create_data_label(parent, "Instant", &instant_label);
+    create_data_label(parent, "Samples", &samples_label);
+    create_data_label(parent, "Raw", &raw_label);
 
     create_separator(parent);
    
-    create_data_label(parent, "Uptime:", &uptime_label);
-    create_data_label(parent, "RAM:", &memory_label);
+    create_data_label(parent, "Uptime", &uptime_label);
+    create_data_label(parent, "RAM", &memory_label);
 }
 
 // Creates a stacked data row: name on top, value below scrolling horizontally if it overflows.
@@ -233,11 +233,10 @@ static void create_about_row(lv_obj_t* parent, const char* name, const char* val
     lv_obj_t* container = lv_obj_create(parent);
     lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(container, 0, 0);
-    lv_obj_set_style_pad_all(container, 2, 0);
-    lv_obj_set_style_pad_left(container, 10, 0);
-    lv_obj_set_style_pad_right(container, 14, 0);
+    lv_obj_set_style_pad_all(container, 0, 0);
+    lv_obj_set_style_pad_ver(container, 4, 0);
     lv_obj_set_style_margin_all(container, 0, 0);
-    lv_obj_set_size(container, 280, LV_SIZE_CONTENT);
+    lv_obj_set_size(container, THEME_CONTENT_WIDTH_PX, LV_SIZE_CONTENT);
     lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_layout(container, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
@@ -246,14 +245,14 @@ static void create_about_row(lv_obj_t* parent, const char* name, const char* val
 
     lv_obj_t* name_label = lv_label_create(container);
     lv_label_set_text(name_label, name);
-    lv_obj_set_style_text_font(name_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(name_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(name_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_width(name_label, LV_PCT(100));
 
     // Value label: full width so SCROLL mode activates for long text
     lv_obj_t* value_label = lv_label_create(container);
     lv_label_set_text(value_label, value);
-    lv_obj_set_style_text_font(value_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(value_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(value_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_label_set_long_mode(value_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(value_label, LV_PCT(100));
@@ -270,28 +269,21 @@ static void create_about_row(lv_obj_t* parent, const char* name, const char* val
 }
 
 void MenuScreen::create_about_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(parent, 0, 0);
-
-    // Enable vertical scrolling for the about page content
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
     // All About values are fixed at build time, so they are populated once here.
     char version_info[48];
     snprintf(version_info, sizeof(version_info), "v%s (#%d)", BUILD_FIRMWARE_VERSION, BUILD_NUMBER);
 
     create_separator(parent, "Device");
-    create_about_row(parent, "Name:", PRODUCT_NAME);
-    create_about_row(parent, "Model:", PRODUCT_MODEL);
+    create_about_row(parent, "Name", PRODUCT_NAME);
+    create_about_row(parent, "Model", PRODUCT_MODEL);
 
     create_separator(parent, "Firmware");
-    create_about_row(parent, "Version:", version_info);
-    create_about_row(parent, "Commit:", get_git_commit_id());
-    create_about_row(parent, "Author:", get_git_commit_author());
-    create_about_row(parent, "Updated:", BUILD_TIMESTAMP);
+    create_about_row(parent, "Version", version_info);
+    create_about_row(parent, "Commit", get_git_commit_id());
+    create_about_row(parent, "Author", get_git_commit_author());
+    create_about_row(parent, "Updated", BUILD_TIMESTAMP);
 
     create_separator(parent, "Credits");
     create_description_label(parent, ORIGINAL_AUTHOR_CREDIT);
@@ -299,30 +291,15 @@ void MenuScreen::create_about_page(lv_obj_t* parent) {
 
 
 void MenuScreen::create_bluetooth_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    // Enable vertical scrolling on the menu page
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
     create_toggle_row(parent, "Enabled", &ble_toggle);
-    create_toggle_row(parent, "Startup", &ble_startup_toggle);
+    create_toggle_row(parent, "On at boot", &ble_startup_toggle);
 
-    // BLE Status label
-    ble_status_label = lv_label_create(parent);
-    lv_label_set_text(ble_status_label, "Bluetooth: Disabled");
-    lv_obj_set_style_text_font(ble_status_label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(ble_status_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_clear_flag(ble_status_label, LV_OBJ_FLAG_SCROLLABLE);
-
-    // BLE Timer label
-    ble_timer_label = lv_label_create(parent);
-    lv_label_set_text(ble_timer_label, "");
-    lv_obj_set_style_text_font(ble_timer_label, &lv_font_montserrat_24, 0);
+    // Live status lines under the toggles
+    ble_status_label = create_description_label(parent, "Bluetooth: Disabled");
+    ble_timer_label = create_description_label(parent, "");
     lv_obj_set_style_text_color(ble_timer_label, lv_color_hex(THEME_COLOR_WARNING), 0);
-    lv_obj_clear_flag(ble_timer_label, LV_OBJ_FLAG_SCROLLABLE);
 
     // Register events for the toggles (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -337,31 +314,17 @@ void MenuScreen::create_bluetooth_page(lv_obj_t* parent) {
 }
 
 void MenuScreen::create_display_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    // Enable vertical scrolling on the menu page
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
     create_slider_row(parent, "Brightness", &brightness_normal_label, &brightness_normal_slider);
 
     // Screensaver section: style (Dim / boot Logo), dimmed brightness, and two-stage
     // timeouts — dim first, then display fully off.
     create_separator(parent, "Screensaver");
-    create_description_label(parent, "Dim the display (or show the logo), then turn it off after longer inactivity.");
-
     const char* screensaver_modes[] = {"Dim", "Logo"};
     screensaver_mode_radio_group = create_radio_button_group(
-        parent,
-        screensaver_modes,
-        2,
-        LV_FLEX_FLOW_ROW,
-        USER_SCREEN_SAVER_MODE_DEFAULT,
-        135, 100,  // Width, Height
-        screensaver_mode_callback,
-        this
-    );
+        parent, screensaver_modes, 2, USER_SCREEN_SAVER_MODE_DEFAULT, screensaver_mode_callback, this);
+    create_description_label(parent, "Dim or show the logo, then turn off.");
 
     create_slider_row(parent, "Dimmed", &brightness_screensaver_label, &brightness_screensaver_slider, lv_color_hex(THEME_COLOR_WARNING));
     // Timeout sliders use discrete positions (0..count-1) mapped to kScreensaverTimeoutStepsMs
@@ -369,6 +332,17 @@ void MenuScreen::create_display_page(lv_obj_t* parent) {
                      lv_color_hex(THEME_COLOR_ACCENT), 0, kScreensaverTimeoutStepCount - 1);
     create_slider_row(parent, "Off after", &screensaver_off_timeout_label, &screensaver_off_timeout_slider,
                      lv_color_hex(THEME_COLOR_ACCENT), 0, kScreensaverTimeoutStepCount - 1);
+    create_description_label(parent, "The logo shows for the last 30s before off.");
+
+    // Logo shown on the boot splash and screensaver: uploaded over BLE (kept on the
+    // grinder's filesystem, so updates don't replace it) or the built-in one
+    create_separator(parent, "Logo");
+    logo_status_label = create_description_label(parent, "");
+    logo_remove_button = create_button(parent, "Remove custom logo", lv_color_hex(THEME_COLOR_SURFACE));
+    lv_obj_set_style_margin_bottom(logo_remove_button, THEME_ROW_GAP_PX, 0);
+    lv_obj_add_event_cb(logo_remove_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::LOGO_REMOVE)));
+    update_logo_status(false);
 
     // Register events for the sliders (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -418,84 +392,41 @@ static void screensaver_mode_callback(int selected_index, void* user_data) {
 }
 
 void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    setup_settings_page(parent);
 
-    // Enable vertical scrolling on the grind mode page
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
-
-    // Mode Selection separator/label
-    create_separator(parent, "Mode Selection");
-
-    // Radio button group for grind mode selection at top (full-width stacked rows)
+    create_separator(parent, "Mode");
     const char* grind_modes[] = {"Weight", "Time"};
-    grind_mode_radio_group = create_radio_button_group(
-        parent,
-        grind_modes,
-        2,
-        LV_FLEX_FLOW_COLUMN,
-        0,  // Weight initially selected
-        280, 70,  // Width, Height
-        grind_mode_callback,
-        this
-    );
-
-    // Descriptive label for swipe functionality
-    lv_obj_t* swipe_desc_label = lv_label_create(parent);
-    lv_label_set_text(swipe_desc_label, "Enable swiping vertically to switch between Weight/Time modes");
-    lv_obj_set_style_text_font(swipe_desc_label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(swipe_desc_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_set_style_margin_bottom(swipe_desc_label, 10, 0);
-    lv_label_set_long_mode(swipe_desc_label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(swipe_desc_label, 260);
-
-    // Swipe toggle using existing pattern
+    grind_mode_radio_group = create_radio_button_group(parent, grind_modes, 2, 0, grind_mode_callback, this);
     create_toggle_row(parent, "Swipe", &grind_mode_swipe_toggle);
+    create_description_label(parent, "Swipe home to switch modes.");
 
-    // Automatic actions section
     create_separator(parent, "Automation");
-    create_description_label(parent, "Start the selected profile as soon as the cup lands on the scale.");
-    create_toggle_row(parent, "Start", &auto_start_toggle);
-    create_description_label(parent, "Exit the completion screen once that cup weight drops away.");
-    create_toggle_row(parent, "Return", &auto_return_toggle);
+    create_toggle_row(parent, "Cup start", &auto_start_toggle);
+    create_description_label(parent, "Grinds when a cup lands.");
+    create_toggle_row(parent, "Auto return", &auto_return_toggle);
+    create_description_label(parent, "Exits the done screen when the cup lifts.");
 
-    // Pulse corrections section
     create_separator(parent, "Corrections");
-    create_description_label(parent, "Top off with short pulses after the predictive grind. Needs a scale that settles cleanly; turn off on a noisy load cell.");
     create_toggle_row(parent, "Pulses", &pulse_corrections_toggle);
+    create_description_label(parent, "Top-up pulses. Off for noisy scales.");
 
-    // Grinder Purging section
     create_separator(parent, "Purging");
-    create_description_label(parent, "Decide what do do with the grinded coffee after the grinder is primed.");
-
-    // Radio button group for grinder purge mode (Keep/Remove) — full-width stacked rows
     const char* grinder_purge_modes[] = {"Keep", "Remove"};
-    grinder_purge_mode_radio_group = create_radio_button_group(
-        parent,
-        grinder_purge_modes,
-        2,
-        LV_FLEX_FLOW_COLUMN,
-        1,  // Purge initially selected (index 1)
-        280, 70,  // Width, Height
-        grinder_purge_mode_callback,
-        this
-    );
-
-    create_description_label(parent, "Purge amount is a minimum target, not an exact goal.");
+    grinder_purge_mode_radio_group = create_radio_button_group(parent, grinder_purge_modes, 2, 1,
+                                                               grinder_purge_mode_callback, this);
+    create_description_label(parent, "Prime grounds: keep or discard.");
 
     // Slider for grinder purge amount (uses kPurgeSliderScale for resolution)
     const uint32_t slider_min_units = static_cast<uint32_t>(GRIND_PURGE_AMOUNT_MIN_G * kPurgeSliderScale + 0.5f);
     const uint32_t slider_max_units = static_cast<uint32_t>(GRIND_PURGE_AMOUNT_MAX_G * kPurgeSliderScale + 0.5f);
     create_slider_row(parent, "Amount", &grinder_purge_amount_label, &grinder_purge_amount_slider,
                      lv_color_hex(THEME_COLOR_ACCENT), slider_min_units, slider_max_units);
-
-    create_description_label(parent, "Set how long grounds stay fresh before showing purge prompt.");
+    create_description_label(parent, "A minimum, not an exact amount.");
 
     // Slider for grind freshness hours (discrete steps: 0.5, 1, 2, 3, 4, 8, 12, 24, 48)
     create_slider_row(parent, "Freshness", &grind_freshness_hours_label, &grind_freshness_hours_slider,
                      lv_color_hex(THEME_COLOR_ACCENT), 0, 8);  // 9 positions (0-8)
+    create_description_label(parent, "Idle time before purging again.");
 
     // Register events for the toggles (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -530,26 +461,21 @@ void MenuScreen::create_grind_mode_page(lv_obj_t* parent) {
 }
 
 void MenuScreen::create_auto_mode_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
-    create_description_label(parent, "The AUTO tab recognizes each handle + basket + funnel setup by weight and picks single or double from its basket.");
+    create_description_label(parent, "Picks the shot by portafilter weight.");
 
-    create_description_label(parent, "Grind automatically a moment after a confident match. Lift the portafilter or flip the guess to cancel.");
-    create_toggle_row(parent, "Auto Start", &auto_mode_auto_start_toggle);
+    create_toggle_row(parent, "Auto start", &auto_mode_auto_start_toggle);
+    create_description_label(parent, "Grinds shortly after a sure match.");
     lv_obj_add_event_cb(auto_mode_auto_start_toggle, EventBridgeLVGL::dispatch_event, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::AUTO_MODE_AUTO_START_TOGGLE)));
 
     create_separator(parent, "Setups");
     learn_portafilters_button = create_button(parent, "Learn Portafilters", lv_color_hex(THEME_COLOR_ACCENT));
-    lv_obj_set_style_margin_bottom(learn_portafilters_button, 10, 0);
+    lv_obj_set_style_margin_bottom(learn_portafilters_button, THEME_ROW_GAP_PX, 0);
     lv_obj_add_event_cb(learn_portafilters_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
                         reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::MENU_LEARN_PORTAFILTERS)));
 
-    create_separator(parent, "Learned Setups");
     create_description_label(parent, "Tap a setup to forget it.");
     portafilter_list = lv_obj_create(parent);
     lv_obj_remove_style_all(portafilter_list);
@@ -561,29 +487,22 @@ void MenuScreen::create_auto_mode_page(lv_obj_t* parent) {
 }
 
 void MenuScreen::create_data_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    
-    // Enable vertical scrolling on the reset page
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
-
-    create_description_label(parent, "Saved grind logs stored on the grinder for export/analysis.");
+    setup_settings_page(parent);
 
     create_toggle_row(parent, "Logging", &logging_toggle);
+    create_description_label(parent, "Saves grind logs for export.");
 
     // Log data section
     create_separator(parent, "Log Data");
-    create_data_label(parent, "Sessions:", &sessions_label);
-    create_data_label(parent, "Events:", &events_label);
-    create_data_label(parent, "Metrics:", &measurements_label);
+    create_data_label(parent, "Sessions", &sessions_label);
+    create_data_label(parent, "Events", &events_label);
+    create_data_label(parent, "Metrics", &measurements_label);
 
     // Reset separator
     create_separator(parent, "Reset");
 
     purge_button = create_button(parent, "Purge Logs", lv_color_hex(THEME_COLOR_WARNING));
-    lv_obj_set_style_margin_bottom(purge_button, 10, 0);
+    lv_obj_set_style_margin_bottom(purge_button, THEME_ROW_GAP_PX, 0);
     reset_button = create_button(parent, "Factory Reset", lv_color_hex(THEME_COLOR_ERROR));
 
     // Register events for the toggle and buttons (done here because widgets are created lazily)
@@ -603,27 +522,19 @@ void MenuScreen::create_data_page(lv_obj_t* parent) {
 }
 
 void MenuScreen::create_stats_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    setup_settings_page(parent);
 
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
-
-    create_description_label(parent, "Lifetime totals for the grinder.");
-
-    create_separator(parent, "Lifetime Statistics");
-    create_data_label(parent, "Total Grinds:", &stat_total_grinds_label, true);
-    create_data_label(parent, "Shots (S/D/C):", &stat_shots_label, true);
-    create_data_label(parent, "Motor Runtime:", &stat_motor_runtime_label, true);
-    create_data_label(parent, "Device Uptime:", &stat_device_uptime_label, true);
-    create_data_label(parent, "Total Weight:", &stat_total_weight_label, true);
-    create_data_label(parent, "Mode (W/T):", &stat_mode_grinds_label, true);
-    create_data_label(parent, "Avg Accuracy:", &stat_avg_accuracy_label, true);
-    create_data_label(parent, "Total Pulses:", &stat_total_pulses_label, true);
+    create_data_label(parent, "Total Grinds", &stat_total_grinds_label, true);
+    create_data_label(parent, "Shots (S/D/C)", &stat_shots_label, true);
+    create_data_label(parent, "Motor Runtime", &stat_motor_runtime_label, true);
+    create_data_label(parent, "Device Uptime", &stat_device_uptime_label, true);
+    create_data_label(parent, "Total Weight", &stat_total_weight_label, true);
+    create_data_label(parent, "Mode (W/T)", &stat_mode_grinds_label, true);
+    create_data_label(parent, "Avg Accuracy", &stat_avg_accuracy_label, true);
+    create_data_label(parent, "Total Pulses", &stat_total_pulses_label, true);
 
     refresh_stats_button = create_button(parent, "Refresh Stats");
-    lv_obj_set_style_margin_top(refresh_stats_button, 10, 0);
+    lv_obj_set_style_margin_top(refresh_stats_button, THEME_SECTION_LABEL_GAP_PX, 0);
 
     // Register event for the button (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -634,60 +545,41 @@ void MenuScreen::create_stats_page(lv_obj_t* parent) {
 }
 
 void MenuScreen::create_diagnostics_page(lv_obj_t* parent) {
-    lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(parent, 0, 0);
-
-    // Enable vertical scrolling
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
+    setup_settings_page(parent);
 
     // Load Cell Status separator
     create_separator(parent, "Load Cell Status");
 
     // Status indicator
-    create_data_label(parent, "Status:", &diag_status_label);
+    create_data_label(parent, "Status", &diag_status_label);
 
     // Calibration factor - stacked for long decimal values
-    create_data_label(parent, "Cal. factor:", &diag_calibration_factor_label);
+    create_data_label(parent, "Cal. factor", &diag_calibration_factor_label);
 
     // Info label (only shown when not calibrated)
-    diag_info_label = lv_label_create(parent);
-    lv_label_set_text(diag_info_label, "");
-    lv_obj_set_style_text_font(diag_info_label, &lv_font_montserrat_24, 0);
+    diag_info_label = create_description_label(parent, "");
     lv_obj_set_style_text_color(diag_info_label, lv_color_hex(THEME_COLOR_WARNING), 0);
-    lv_obj_set_style_margin_top(diag_info_label, 10, 0);
-    lv_obj_set_style_margin_bottom(diag_info_label, 10, 0);
-    lv_label_set_long_mode(diag_info_label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(diag_info_label, 260);
     lv_obj_add_flag(diag_info_label, LV_OBJ_FLAG_HIDDEN); // Hidden by default
 
     diag_reset_button = create_button(parent, "Reset Diagnostics", lv_color_hex(THEME_COLOR_WARNING));
-    lv_obj_set_style_margin_bottom(diag_reset_button, 10, 0);
+    lv_obj_set_style_margin_bottom(diag_reset_button, THEME_ROW_GAP_PX, 0);
 
     // Noise Floor separator
     create_separator(parent, "Noise Floor");
 
     // Std dev readings (moved from System Info) - stacked for precision values
-    create_data_label(parent, "Std Dev (g):", &diag_std_dev_g_label);
-    create_data_label(parent, "Std Dev (ADC):", &diag_std_dev_adc_label);
-    create_data_label(parent, "Noise level:", &diag_noise_level_label);
+    create_data_label(parent, "Std Dev (g)", &diag_std_dev_g_label);
+    create_data_label(parent, "Std Dev (ADC)", &diag_std_dev_adc_label);
+    create_data_label(parent, "Noise level", &diag_noise_level_label);
 
     // Static info label about calibration dependency
-    lv_obj_t* cal_info = lv_label_create(parent);
-    lv_label_set_text(cal_info, "Noise level readings depend on proper calibration.");
-    lv_obj_set_style_text_font(cal_info, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(cal_info, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_set_style_margin_top(cal_info, 10, 0);
-    lv_label_set_long_mode(cal_info, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(cal_info, 260);
+    create_description_label(parent, "Needs a good calibration.");
 
     // Motor Response separator
     create_separator(parent, "Motor Response");
 
     // Motor latency
-    create_data_label(parent, "Motor Latency:", &diag_motor_latency_label, true);
+    create_data_label(parent, "Motor Latency", &diag_motor_latency_label, true);
 
     // Register event for the button (done here because widgets are created lazily)
     using ET = EventBridgeLVGL::EventType;
@@ -860,7 +752,7 @@ void MenuScreen::update_ble_status() {
         unsigned long remaining_ms = bluetooth_manager->get_bluetooth_timeout_remaining_ms();
         unsigned long remaining_min = remaining_ms / (60 * 1000);
         char timer_text[64];
-        snprintf(timer_text, sizeof(timer_text), "Auto-disable in: %lu min", remaining_min);
+        snprintf(timer_text, sizeof(timer_text), "Turns off in %lu min", remaining_min);
         lv_label_set_text(ble_timer_label, timer_text);
         lv_obj_clear_flag(ble_timer_label, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -1081,44 +973,34 @@ void MenuScreen::update_grind_freshness_hours_label(float hours) {
 }
 
 lv_obj_t* MenuScreen::create_separator(lv_obj_t* parent, const char* text) {
-    // Create separator container
-    lv_obj_t* separator_container = lv_obj_create(parent);
-    lv_obj_set_size(separator_container, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(separator_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(separator_container, 0, 0);
-    lv_obj_set_layout(separator_container, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(separator_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(separator_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(separator_container, LV_OBJ_FLAG_SCROLLABLE);
+    // Section label: a sentence-case line in the tertiary text color, aligned with the
+    // cards' outer edge. Without text it is a 2px rule (a divider inside a page).
+    lv_obj_t* section = lv_obj_create(parent);
+    lv_obj_remove_style_all(section);
+    lv_obj_set_size(section, THEME_CONTENT_WIDTH_PX, LV_SIZE_CONTENT);
+    lv_obj_set_style_margin_top(section, text ? THEME_SECTION_GAP_PX : THEME_ROW_GAP_PX, 0);
+    lv_obj_set_style_margin_bottom(section, text ? THEME_SECTION_LABEL_GAP_PX : THEME_ROW_GAP_PX, 0);
+    lv_obj_set_layout(section, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(section, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(section, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_clear_flag(section, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Create left line
-    lv_obj_t* left_line = lv_obj_create(separator_container);
-    lv_obj_set_size(left_line, LV_SIZE_CONTENT, 2);
-    lv_obj_set_flex_grow(left_line, 1);
-    lv_obj_set_style_bg_color(left_line, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_set_style_border_width(left_line, 0, 0);
-
-    if (!text) {
-        // If no text, make the line take full width
-        return separator_container;
+    if (text) {
+        lv_obj_t* label = lv_label_create(section);
+        lv_label_set_text(label, text);
+        lv_obj_set_style_text_font(label, THEME_FONT_SECTION, 0);
+        lv_obj_set_style_text_color(label, lv_color_hex(THEME_COLOR_SECTION_LABEL), 0);
+        return section;
     }
 
-    // Create text label
-    lv_obj_t* separator_label = lv_label_create(separator_container);
-    lv_label_set_text(separator_label, text);
-    lv_obj_set_style_text_font(separator_label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(separator_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_set_style_pad_left(separator_label, 10, 0);
-    lv_obj_set_style_pad_right(separator_label, 10, 0);
+    lv_obj_t* rule = lv_obj_create(section);
+    lv_obj_remove_style_all(rule);
+    lv_obj_set_height(rule, 2);
+    lv_obj_set_flex_grow(rule, 1);
+    lv_obj_set_style_bg_color(rule, lv_color_hex(THEME_COLOR_HAIRLINE), 0);
+    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
 
-    // Create right line
-    lv_obj_t* right_line = lv_obj_create(separator_container);
-    lv_obj_set_size(right_line, LV_SIZE_CONTENT, 2);
-    lv_obj_set_flex_grow(right_line, 1);
-    lv_obj_set_style_bg_color(right_line, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
-    lv_obj_set_style_border_width(right_line, 0, 0);
-
-    return separator_container;
+    return section;
 }
 
 void MenuScreen::update_bluetooth_startup_toggle() {
@@ -1162,9 +1044,10 @@ void MenuScreen::update_logging_toggle() {
 lv_obj_t* MenuScreen::create_menu_item(lv_obj_t* parent, const char* text) {
     lv_obj_t* cont = lv_menu_cont_create(parent);
     style_as_button(cont);
-    lv_obj_set_style_margin_bottom(cont, 10, 0);
+    lv_obj_set_style_bg_color(cont, lv_color_hex(THEME_COLOR_SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_set_style_margin_bottom(cont, THEME_ROW_GAP_PX, 0);
+    lv_obj_set_style_pad_hor(cont, THEME_ROW_INSET_PX, 0);
 
-    // Set layout
     lv_obj_set_layout(cont, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -1179,12 +1062,29 @@ lv_obj_t* MenuScreen::create_menu_item(lv_obj_t* parent, const char* text) {
     return cont;
 }
 
+// The whole toggle row is the touch target: a tap flips the switch and reports it
+// exactly as a tap on the switch would (VALUE_CHANGED on the switch object).
+static void toggle_row_clicked_cb(lv_event_t* e) {
+    lv_obj_t* toggle = static_cast<lv_obj_t*>(lv_event_get_user_data(e));
+    if (!toggle || lv_obj_has_state(toggle, LV_STATE_DISABLED)) {
+        return;
+    }
+    if (lv_obj_has_state(toggle, LV_STATE_CHECKED)) {
+        lv_obj_clear_state(toggle, LV_STATE_CHECKED);
+    } else {
+        lv_obj_add_state(toggle, LV_STATE_CHECKED);
+    }
+    lv_obj_send_event(toggle, LV_EVENT_VALUE_CHANGED, nullptr);
+}
+
 lv_obj_t* MenuScreen::create_toggle_row(lv_obj_t* parent, const char* text, lv_obj_t** out_toggle) {
     lv_obj_t* row_container = lv_obj_create(parent);
     style_as_button(row_container);
-    lv_obj_set_style_margin_bottom(row_container, 10, 0);
+    lv_obj_set_style_margin_bottom(row_container, THEME_ROW_GAP_PX, 0);
+    lv_obj_set_style_pad_hor(row_container, THEME_ROW_INSET_PX, 0);
+    lv_obj_set_style_bg_color(row_container, lv_color_hex(THEME_COLOR_SURFACE_PRESSED), LV_STATE_PRESSED);
+    lv_obj_add_flag(row_container, LV_OBJ_FLAG_CLICKABLE);
 
-    // Set layout
     lv_obj_set_layout(row_container, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(row_container, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -1192,34 +1092,44 @@ lv_obj_t* MenuScreen::create_toggle_row(lv_obj_t* parent, const char* text, lv_o
     lv_obj_t* label = lv_label_create(row_container);
     lv_label_set_text(label, text);
 
-    *out_toggle = lv_switch_create(row_container);
-    lv_obj_set_size(*out_toggle, 80, 40);
-    lv_obj_set_ext_click_area(*out_toggle, 20);
-    
+    // Switch: a filled track-grey pill with a white knob when off, accent track when on
+    lv_obj_t* toggle = lv_switch_create(row_container);
+    lv_obj_set_size(toggle, THEME_SWITCH_WIDTH_PX, THEME_SWITCH_HEIGHT_PX);
+    lv_obj_clear_flag(toggle, LV_OBJ_FLAG_CLICKABLE);  // The row handles the tap
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(THEME_COLOR_TRACK), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(toggle, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(toggle, 0, LV_PART_MAIN);
+    const lv_style_selector_t checked_indicator =
+        static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | static_cast<lv_style_selector_t>(LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(THEME_COLOR_SELECTED), checked_indicator);
+    lv_obj_set_style_bg_opa(toggle, LV_OPA_COVER, checked_indicator);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), LV_PART_KNOB);
+    lv_obj_set_style_pad_all(toggle, -THEME_SWITCH_KNOB_INSET_PX, LV_PART_KNOB);
+    lv_obj_set_style_shadow_width(toggle, 0, LV_PART_KNOB);
+
+    lv_obj_add_event_cb(row_container, toggle_row_clicked_cb, LV_EVENT_CLICKED, toggle);
+    *out_toggle = toggle;
     return row_container;
 }
 
-
 lv_obj_t* MenuScreen::create_slider_row(lv_obj_t* parent, const char* text, lv_obj_t** label, lv_obj_t** slider, lv_color_t slider_color, uint32_t min, uint32_t max) {
     lv_obj_t* row_container = lv_obj_create(parent);
-    style_as_button(row_container, 260, LV_SIZE_CONTENT);
-    lv_obj_set_style_margin_bottom(row_container, 10, 0);
-    // Set layout
-
+    style_as_button(row_container, THEME_CONTENT_WIDTH_PX, LV_SIZE_CONTENT);
+    lv_obj_set_style_margin_bottom(row_container, THEME_ROW_GAP_PX, 0);
     lv_obj_set_layout(row_container, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(row_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(row_container, 14, 0);
-    lv_obj_set_style_pad_all(row_container, 20, 0);
+    lv_obj_set_style_pad_gap(row_container, 12, 0);
+    lv_obj_set_style_pad_all(row_container, THEME_ROW_INSET_PX, 0);
 
     *label = lv_label_create(row_container);
     lv_label_set_text(*label, text);
 
     *slider = lv_slider_create(row_container);
-    lv_obj_set_size(*slider, 220, 40);
-    lv_obj_set_ext_click_area(*slider, 20);
+    lv_obj_set_size(*slider, THEME_CONTENT_WIDTH_PX - 2 * THEME_ROW_INSET_PX, 32);
+    lv_obj_set_ext_click_area(*slider, 16);
     lv_slider_set_range(*slider, min, max);
-    lv_obj_set_style_bg_color(*slider, lv_color_hex(THEME_COLOR_BACKGROUND), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(*slider, lv_color_hex(THEME_COLOR_TRACK), LV_PART_MAIN);
     lv_obj_set_style_bg_color(*slider, slider_color, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(*slider, LV_OPA_TRANSP, LV_PART_KNOB);
     return row_container;
@@ -1237,26 +1147,15 @@ lv_obj_t* MenuScreen::create_data_label(lv_obj_t* parent, const char* name, lv_o
 }
 
 lv_obj_t* MenuScreen::create_description_label(lv_obj_t* parent, const char* text) {
-    // Create container with padding (similar to create_data_label)
-    lv_obj_t* container = lv_obj_create(parent);
-    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(container, 0, 0);
-    lv_obj_set_style_pad_all(container, 0, 0);
-    lv_obj_set_style_pad_left(container, 10, 0);
-    lv_obj_set_style_pad_right(container, 14, 0);
-    lv_obj_set_style_margin_top(container, 12, 0);
-    lv_obj_set_style_margin_bottom(container, 12, 0);
-    lv_obj_set_size(container, 280, LV_SIZE_CONTENT);
-    lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);
-
-    // Create label inside container
-    lv_obj_t* label = lv_label_create(container);
+    // Body text aligned with the row cards' outer edge. It explains the control right
+    // above it, so it sits close to that row and leaves extra room before the next.
+    lv_obj_t* label = lv_label_create(parent);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(label, LV_PCT(100));
-
+    lv_obj_set_width(label, THEME_CONTENT_WIDTH_PX);
+    lv_obj_set_style_text_font(label, THEME_FONT_BODY, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
+    lv_obj_set_style_margin_bottom(label, THEME_ROW_GAP_PX + THEME_DESCRIPTION_GAP_PX, 0);
     return label;
 }
 
@@ -1380,7 +1279,7 @@ void MenuScreen::update_portafilter_list() {
 
     const int count = portafilter_detector ? portafilter_detector->cluster_count() : 0;
     if (count == 0) {
-        create_description_label(portafilter_list, "None yet. Use Learn Portafilters, or place one on the AUTO tab.");
+        create_description_label(portafilter_list, "None yet. Learn one above.");
         return;
     }
 
@@ -1388,9 +1287,13 @@ void MenuScreen::update_portafilter_list() {
         const PortafilterCluster& cluster = portafilter_detector->cluster(i);
 
         lv_obj_t* row = lv_obj_create(portafilter_list);
-        style_as_button(row, 260, LV_SIZE_CONTENT, &lv_font_montserrat_24);
-        lv_obj_set_style_margin_bottom(row, 10, 0);
-        lv_obj_set_style_pad_ver(row, 14, 0);
+        // Two-line row: body-size name over a caption, at least one row tall
+        style_as_button(row, THEME_CONTENT_WIDTH_PX, LV_SIZE_CONTENT, THEME_FONT_BODY);
+        lv_obj_set_style_min_height(row, THEME_ROW_HEIGHT_PX, 0);
+        lv_obj_set_style_bg_color(row, lv_color_hex(THEME_COLOR_SURFACE_PRESSED), LV_STATE_PRESSED);
+        lv_obj_set_style_margin_bottom(row, THEME_ROW_GAP_PX, 0);
+        lv_obj_set_style_pad_hor(row, THEME_ROW_INSET_PX, 0);
+        lv_obj_set_style_pad_ver(row, 10, 0);
         lv_obj_set_layout(row, LV_LAYOUT_FLEX);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -1413,11 +1316,13 @@ void MenuScreen::update_portafilter_list() {
         lv_label_set_text(name_label, text);
 
         lv_obj_t* detail_label = lv_label_create(text_column);
-        snprintf(text, sizeof(text), "+/-%.2fg, %u samples",
+        // Short enough to clear the trash icon at Caption 24 without wrapping
+        snprintf(text, sizeof(text), "+/-%.2fg, %ux",
                  static_cast<double>(portafilter_detector->cluster_sigma(i)),
                  static_cast<unsigned>(cluster.count));
         lv_label_set_text(detail_label, text);
-        lv_obj_set_style_text_color(detail_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_font(detail_label, THEME_FONT_CAPTION, 0);
+        lv_obj_set_style_text_color(detail_label, lv_color_hex(THEME_COLOR_TEXT_TERTIARY), 0);
 
         lv_obj_t* trash = lv_label_create(row);
         lv_label_set_text(trash, LV_SYMBOL_TRASH);
@@ -1440,5 +1345,19 @@ void MenuScreen::update_auto_mode_toggles() {
         lv_obj_add_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
     } else {
         lv_obj_clear_state(auto_mode_auto_start_toggle, LV_STATE_CHECKED);
+    }
+}
+
+void MenuScreen::update_logo_status(bool custom_logo_installed) {
+    if (!logo_status_label || !logo_remove_button) {
+        return;
+    }
+    lv_label_set_text(logo_status_label, custom_logo_installed
+                                             ? "Custom logo installed. Updates keep it."
+                                             : "Built-in logo. Upload your own with grinder.py logo.");
+    if (custom_logo_installed) {
+        lv_obj_clear_flag(logo_remove_button, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(logo_remove_button, LV_OBJ_FLAG_HIDDEN);
     }
 }

@@ -9,6 +9,7 @@
 #include "../config/constants.h"
 #include "ota_handler.h"
 #include "data_stream.h"
+#include "logo_upload_handler.h"
 
 // Forward declarations to avoid circular dependencies
 class UIManager;
@@ -91,6 +92,7 @@ private:
     
     // Component handlers
     OTAHandler ota_handler;
+    LogoUploadHandler logo_upload_;
     DataStreamManager data_stream;
     
     // Data export state
@@ -133,6 +135,8 @@ private:
     void enqueue_ui_status(const char* status);
     void set_ota_status(BLEOTAStatus status);
     void set_data_status(BLEDataStatus status);
+    void notify_logo_status(BLELogoStatus status);
+    void handle_logo_command(uint8_t command, const uint8_t* payload, size_t payload_size);
     void handle_ota_control_command(BLECharacteristic* characteristic);
     void handle_ota_data_chunk(BLECharacteristic* characteristic);
     void handle_debug_command(BLECharacteristic* characteristic);

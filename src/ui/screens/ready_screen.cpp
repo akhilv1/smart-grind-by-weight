@@ -1,4 +1,5 @@
 #include "ready_screen.h"
+#include <cmath>
 #include "arduino_compat.h"
 #include "../../config/constants.h"
 #include "../../controllers/grind_mode_traits.h"
@@ -129,9 +130,8 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
     lv_obj_set_width(top_spacer, LV_PCT(100));
     lv_obj_set_flex_grow(top_spacer, 1);
 
-    lv_obj_t* name_label;
-    (void)create_profile_label(parent, &name_label, &auto_value_label);
-    lv_label_set_text(name_label, "AUTO");
+    (void)create_profile_label(parent, &auto_name_label, &auto_value_label);
+    lv_label_set_text(auto_name_label, "AUTO");
     lv_label_set_text(auto_value_label, "--");
 
     // Long-press anywhere on the page (not its buttons) opens Learn Portafilters
@@ -141,7 +141,7 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
     auto_status_label = lv_label_create(parent);
     lv_label_set_long_mode(auto_status_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(auto_status_label, LV_PCT(90));
-    lv_obj_set_style_text_font(auto_status_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(auto_status_label, THEME_FONT_STATUS, 0);
     lv_obj_set_style_text_color(auto_status_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(auto_status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_pad_top(auto_status_label, 6, 0);
@@ -174,10 +174,7 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
         lv_obj_add_flag(auto_label_buttons[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    auto_start_button = create_round_button(button_row, LV_SYMBOL_PLAY, THEME_COLOR_PRIMARY);
-    lv_obj_add_event_cb(auto_start_button, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
-                        reinterpret_cast<void*>(static_cast<intptr_t>(ET::AUTO_START)));
-    lv_obj_add_flag(auto_start_button, LV_OBJ_FLAG_HIDDEN);
+    create_auto_logo(button_row);
 
     auto_swap_button = create_round_button(button_row, "", THEME_COLOR_NEUTRAL);
     lv_obj_set_size(auto_swap_button, 120, 60);
@@ -187,6 +184,16 @@ void ReadyScreen::create_auto_page(lv_obj_t* parent) {
     lv_obj_add_flag(auto_swap_button, LV_OBJ_FLAG_HIDDEN);
 }
 
+// ----------------------------------------------------------------------------
+// AUTO mark
+// ----------------------------------------------------------------------------
+// Two canvas layers in a 100x100 slot (same footprint as the other tabs' action
+// buttons): a ring layer that shows two clockwise arrows (searching) or a closed
+// circle (matched), and a glyph layer. While searching the glyph is an "A" stroked
+// at the ring's weight; once matched it becomes one or two shot dots above a play
+// symbol, so the slot reads as the same start control as the profile tabs. Color
+// carries state: blue at rest and when matched, yellow while a placement is being
+// read. Canvas buffers come from the LVGL heap (PSRAM).
 static void set_visible(lv_obj_t* obj, bool visible) {
     if (!obj) {
         return;
@@ -198,8 +205,229 @@ static void set_visible(lv_obj_t* obj, bool visible) {
     }
 }
 
-void ReadyScreen::update_auto_page(const char* value_text, const char* status_text, AutoPageAction action,
-                                   const char* swap_text, uint32_t start_color) {
+static constexpr int32_t kAutoLogoSize = 100;
+static constexpr float kAutoLogoCenter = kAutoLogoSize / 2.0f;
+static constexpr float kRingRadius = 41.0f;     // Ring centerline
+static constexpr int32_t kRingStroke = 7;
+static constexpr int32_t kGlyphStroke = 8;
+
+static lv_point_precise_t point_on_circle(float cx, float cy, float angle_deg, float radius) {
+    // LVGL angle convention: 0 deg at 3 o'clock, increasing clockwise (screen y is down)
+    const float rad = angle_deg * 3.14159265f / 180.0f;
+    lv_point_precise_t point;
+    point.x = static_cast<lv_value_precise_t>(cx + radius * cosf(rad));
+    point.y = static_cast<lv_value_precise_t>(cy + radius * sinf(rad));
+    return point;
+}
+
+// Arc along a centerline radius (lv_draw_arc's radius is the outer edge)
+static void draw_stroke_arc(lv_layer_t* layer, uint32_t color, float cx, float cy, float radius,
+                            int32_t stroke, float start_deg, float end_deg) {
+    lv_draw_arc_dsc_t arc;
+    lv_draw_arc_dsc_init(&arc);
+    arc.color = lv_color_hex(color);
+    arc.width = stroke;
+    arc.center.x = static_cast<int32_t>(cx);
+    arc.center.y = static_cast<int32_t>(cy);
+    arc.radius = static_cast<uint16_t>(radius + stroke / 2.0f);
+    arc.start_angle = start_deg;
+    arc.end_angle = end_deg;
+    arc.rounded = 1;
+    lv_draw_arc(layer, &arc);
+}
+
+static void draw_stroke_line(lv_layer_t* layer, uint32_t color, float x1, float y1, float x2, float y2) {
+    lv_draw_line_dsc_t line;
+    lv_draw_line_dsc_init(&line);
+    line.color = lv_color_hex(color);
+    line.width = kGlyphStroke;
+    line.round_start = 1;
+    line.round_end = 1;
+    line.p1.x = x1;
+    line.p1.y = y1;
+    line.p2.x = x2;
+    line.p2.y = y2;
+    lv_draw_line(layer, &line);
+}
+
+static void draw_ring_arrow(lv_layer_t* layer, uint32_t color, float start_deg, float end_deg) {
+    constexpr float kHeadHalfWidth = 8.0f;   // Radial half-width of the arrowhead base
+    constexpr float kHeadLengthDeg = 18.0f;
+
+    draw_stroke_arc(layer, color, kAutoLogoCenter, kAutoLogoCenter, kRingRadius, kRingStroke, start_deg, end_deg);
+
+    // Arrowhead continues the arc clockwise from its end
+    lv_draw_triangle_dsc_t head;
+    lv_draw_triangle_dsc_init(&head);
+    head.color = lv_color_hex(color);
+    head.p[0] = point_on_circle(kAutoLogoCenter, kAutoLogoCenter, end_deg, kRingRadius - kHeadHalfWidth);
+    head.p[1] = point_on_circle(kAutoLogoCenter, kAutoLogoCenter, end_deg, kRingRadius + kHeadHalfWidth);
+    head.p[2] = point_on_circle(kAutoLogoCenter, kAutoLogoCenter, end_deg + kHeadLengthDeg, kRingRadius);
+    lv_draw_triangle(layer, &head);
+}
+
+static void redraw_ring(lv_obj_t* canvas, uint32_t color, bool closed) {
+    lv_canvas_fill_bg(canvas, lv_color_hex(THEME_COLOR_BACKGROUND), LV_OPA_TRANSP);
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas, &layer);
+    if (closed) {
+        draw_stroke_arc(&layer, color, kAutoLogoCenter, kAutoLogoCenter, kRingRadius, kRingStroke, 0.0f, 360.0f);
+    } else {
+        // Two arrows chasing each other clockwise, gaps at 3 and 9 o'clock
+        draw_ring_arrow(&layer, color, 195.0f, 330.0f);
+        draw_ring_arrow(&layer, color, 15.0f, 150.0f);
+    }
+    lv_canvas_finish_layer(canvas, &layer);
+}
+
+static void draw_dot(lv_layer_t* layer, uint32_t color, float cx, float cy) {
+    constexpr float kDotRadius = 4.0f;
+    draw_stroke_arc(layer, color, cx, cy, kDotRadius / 2.0f, static_cast<int32_t>(kDotRadius), 0.0f, 360.0f);
+}
+
+// shots == 0 draws the "A"; 1 or 2 draws that many shot dots above the play symbol
+static void redraw_glyph(lv_obj_t* canvas, uint32_t color, uint8_t shots) {
+    lv_canvas_fill_bg(canvas, lv_color_hex(THEME_COLOR_BACKGROUND), LV_OPA_TRANSP);
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas, &layer);
+
+    if (shots == 0) {
+        draw_stroke_line(&layer, color, 50.0f, 27.0f, 33.0f, 71.0f);   // Left leg
+        draw_stroke_line(&layer, color, 50.0f, 27.0f, 67.0f, 71.0f);   // Right leg
+        draw_stroke_line(&layer, color, 39.5f, 56.0f, 60.5f, 56.0f);   // Crossbar
+    } else if (shots == 1) {
+        draw_dot(&layer, color, 50.0f, 27.0f);
+    } else {
+        draw_dot(&layer, color, 44.5f, 27.0f);
+        draw_dot(&layer, color, 55.5f, 27.0f);
+    }
+    lv_canvas_finish_layer(canvas, &layer);
+}
+
+static lv_obj_t* create_logo_label(lv_obj_t* parent, const lv_font_t* font, uint32_t color, int32_t y_offset) {
+    lv_obj_t* label = lv_label_create(parent);
+    lv_obj_set_style_text_font(label, font, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, y_offset);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    return label;
+}
+
+static lv_obj_t* create_logo_layer(lv_obj_t* parent) {
+    lv_obj_t* canvas = lv_canvas_create(parent);
+    lv_obj_clear_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(canvas, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_draw_buf_t* buffer = lv_draw_buf_create(kAutoLogoSize, kAutoLogoSize, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (buffer) {
+        lv_canvas_set_draw_buf(canvas, buffer);
+    } else {
+        lv_obj_set_size(canvas, kAutoLogoSize, kAutoLogoSize);  // Slot stays empty without a buffer
+    }
+    lv_obj_center(canvas);
+    return canvas;
+}
+
+void ReadyScreen::create_auto_logo(lv_obj_t* parent) {
+    // The container is the START control when matched: its fill is the press target
+    auto_logo = lv_obj_create(parent);
+    lv_obj_remove_style_all(auto_logo);
+    lv_obj_set_size(auto_logo, kAutoLogoSize, kAutoLogoSize);
+    lv_obj_set_style_radius(auto_logo, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(auto_logo, lv_color_hex(THEME_COLOR_ACCENT), 0);
+    lv_obj_set_style_bg_opa(auto_logo, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_transform_pivot_x(auto_logo, kAutoLogoSize / 2, 0);
+    lv_obj_set_style_transform_pivot_y(auto_logo, kAutoLogoSize / 2, 0);
+    lv_obj_clear_flag(auto_logo, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(auto_logo, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(auto_logo, EventBridgeLVGL::dispatch_event, LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<intptr_t>(EventBridgeLVGL::EventType::AUTO_START)));
+
+    auto_logo_ring = create_logo_layer(auto_logo);
+    auto_logo_glyph = create_logo_layer(auto_logo);
+
+    // Play symbol under the shot dots: the same glyph as the profile tabs' grind button
+    auto_logo_play_label = create_logo_label(auto_logo, THEME_FONT_SYMBOL, THEME_COLOR_TEXT_PRIMARY, 8);
+    lv_label_set_text(auto_logo_play_label, LV_SYMBOL_PLAY);
+
+    set_auto_logo(AutoPageAction::LOGO, 0);
+}
+
+static void logo_spin_anim_cb(void* obj, int32_t value) {
+    lv_image_set_rotation(static_cast<lv_obj_t*>(obj), value);
+}
+
+static void logo_pop_anim_cb(void* obj, int32_t value) {
+    lv_obj_set_style_transform_scale(static_cast<lv_obj_t*>(obj), value, 0);
+}
+
+void ReadyScreen::set_auto_logo(AutoPageAction action, uint8_t shots) {
+    if (!auto_logo || !auto_logo_ring || !auto_logo_glyph) {
+        return;
+    }
+
+    const bool matched = (action == AutoPageAction::START || action == AutoPageAction::LOCKED);
+    const uint8_t shown_shots = matched ? shots : 0;
+    if (action == auto_logo_action && shown_shots == auto_logo_shots) {
+        return;
+    }
+    const AutoPageAction previous = auto_logo_action;
+    const bool was_matched = (previous == AutoPageAction::START || previous == AutoPageAction::LOCKED);
+    auto_logo_action = action;
+    auto_logo_shots = shown_shots;
+
+    const bool detecting = (action == AutoPageAction::DETECTING);
+    const uint32_t color = detecting ? THEME_COLOR_DETECTING : THEME_COLOR_ACCENT;
+    redraw_ring(auto_logo_ring, color, matched);
+    redraw_glyph(auto_logo_glyph, color, shown_shots);
+    // Only a tappable ring shows the play symbol; a still-on portafilter gets the bare ring
+    set_visible(auto_logo_play_label, action == AutoPageAction::START);
+
+    // Arrows spin only while reading a placement; an idle home screen stays still
+    lv_anim_delete(auto_logo_ring, logo_spin_anim_cb);
+    lv_image_set_rotation(auto_logo_ring, 0);
+    if (detecting) {
+        lv_anim_t spin;
+        lv_anim_init(&spin);
+        lv_anim_set_var(&spin, auto_logo_ring);
+        lv_anim_set_exec_cb(&spin, logo_spin_anim_cb);
+        lv_anim_set_values(&spin, 0, 3600);
+        lv_anim_set_duration(&spin, 1200);
+        lv_anim_set_repeat_count(&spin, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&spin);
+    }
+
+    // Matched + tappable: a faint fill marks it as the START control, deeper when pressed
+    const bool tappable = (action == AutoPageAction::START);
+    lv_obj_set_style_bg_opa(auto_logo, tappable ? LV_OPA_30 : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_opa(auto_logo, tappable ? LV_OPA_50 : LV_OPA_TRANSP, LV_STATE_PRESSED);
+    if (tappable) {
+        lv_obj_add_flag(auto_logo, LV_OBJ_FLAG_CLICKABLE);
+    } else {
+        lv_obj_clear_flag(auto_logo, LV_OBJ_FLAG_CLICKABLE);
+    }
+
+    // The ring closing is the moment of recognition: give it a short pop
+    lv_anim_delete(auto_logo, logo_pop_anim_cb);
+    lv_obj_set_style_transform_scale(auto_logo, LV_SCALE_NONE, 0);
+    if (matched && !was_matched) {
+        lv_anim_t pop;
+        lv_anim_init(&pop);
+        lv_anim_set_var(&pop, auto_logo);
+        lv_anim_set_exec_cb(&pop, logo_pop_anim_cb);
+        lv_anim_set_values(&pop, LV_SCALE_NONE * 82 / 100, LV_SCALE_NONE);
+        lv_anim_set_duration(&pop, 220);
+        lv_anim_set_path_cb(&pop, lv_anim_path_overshoot);
+        lv_anim_start(&pop);
+    }
+}
+
+void ReadyScreen::update_auto_page(const char* name_text, const char* value_text, const char* status_text,
+                                   AutoPageAction action, uint8_t shots, const char* swap_text) {
+    if (auto_name_label) {
+        lv_label_set_text(auto_name_label, name_text ? name_text : "AUTO");
+    }
     if (auto_value_label) {
         lv_label_set_text(auto_value_label, value_text ? value_text : "");
     }
@@ -212,11 +440,14 @@ void ReadyScreen::update_auto_page(const char* value_text, const char* status_te
     for (lv_obj_t* button : auto_label_buttons) {
         set_visible(button, ask);
     }
-    set_visible(auto_start_button, start);
     set_visible(auto_swap_button, start);
     if (start) {
-        lv_obj_set_style_bg_color(auto_start_button, lv_color_hex(start_color), 0);
         lv_label_set_text(auto_swap_label, swap_text ? swap_text : "");
+    }
+
+    set_visible(auto_logo, !ask);
+    if (!ask) {
+        set_auto_logo(action, shots);
     }
 }
 
@@ -237,7 +468,7 @@ void ReadyScreen::create_menu_page(lv_obj_t* parent) {
     // Info label
     lv_obj_t* info_label = lv_label_create(parent);
     lv_label_set_text(info_label, "MAIN\nMENU");
-    lv_obj_set_style_text_font(info_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(info_label, THEME_FONT_DISPLAY_NAME, 0);
     lv_obj_set_style_text_color(info_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(info_label, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -259,7 +490,7 @@ static lv_obj_t* create_round_button(lv_obj_t* parent, const char* text, uint32_
 
     lv_obj_t* label = lv_label_create(btn);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(label, THEME_FONT_ROW, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_center(label);
     return btn;
@@ -281,12 +512,12 @@ void ReadyScreen::create_scale_page(lv_obj_t* parent) {
 
     lv_obj_t* subtitle = lv_label_create(parent);
     lv_label_set_text(subtitle, "Live weight");
-    lv_obj_set_style_text_font(subtitle, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(subtitle, THEME_FONT_STATUS, 0);
     lv_obj_set_style_text_color(subtitle, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
 
     scale_weight_label = lv_label_create(parent);
     lv_label_set_text(scale_weight_label, "0.0g");
-    lv_obj_set_style_text_font(scale_weight_label, &lv_font_montserrat_56, 0);
+    lv_obj_set_style_text_font(scale_weight_label, THEME_FONT_DISPLAY_VALUE, 0);
     lv_obj_set_style_text_color(scale_weight_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(scale_weight_label, LV_TEXT_ALIGN_CENTER, 0);
 

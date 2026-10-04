@@ -45,7 +45,7 @@ void StatusIndicatorController::build() {
     lv_obj_set_ext_click_area(back_button_, 14);
     lv_obj_t* back_label = lv_label_create(back_button_);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(back_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(back_label, THEME_FONT_NAV, 0);
     lv_obj_set_style_text_color(back_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_center(back_label);
     lv_obj_align(back_button_, LV_ALIGN_LEFT_MID, 0, 0);
@@ -57,7 +57,7 @@ void StatusIndicatorController::build() {
     title_label_ = lv_label_create(bar_);
     lv_label_set_long_mode(title_label_, LV_LABEL_LONG_DOT);
     lv_label_set_text(title_label_, "");
-    lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(title_label_, THEME_FONT_NAV, 0);
     lv_obj_set_style_text_color(title_label_, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
 
     // Right-side status icon cluster (warning left of Bluetooth), transparent container.
@@ -72,13 +72,13 @@ void StatusIndicatorController::build() {
 
     warning_icon_ = lv_label_create(icons);
     lv_label_set_text(warning_icon_, LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_font(warning_icon_, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(warning_icon_, THEME_FONT_NAV, 0);
     lv_obj_set_style_text_color(warning_icon_, lv_color_hex(THEME_COLOR_WARNING), 0);
     lv_obj_add_flag(warning_icon_, LV_OBJ_FLAG_HIDDEN);
 
     ble_status_icon_ = lv_label_create(icons);
     lv_label_set_text(ble_status_icon_, LV_SYMBOL_BLUETOOTH);
-    lv_obj_set_style_text_font(ble_status_icon_, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(ble_status_icon_, THEME_FONT_NAV, 0);
     lv_obj_set_style_text_color(ble_status_icon_, lv_color_hex(THEME_COLOR_ACCENT), 0);
     lv_obj_add_flag(ble_status_icon_, LV_OBJ_FLAG_HIDDEN);
 

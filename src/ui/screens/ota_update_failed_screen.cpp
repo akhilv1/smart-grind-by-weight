@@ -22,7 +22,7 @@ void OtaUpdateFailedScreen::create() {
     // Title label - warning icon and text
     title_label = lv_label_create(screen);
     lv_label_set_text(title_label, "Update Failed");
-    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_font(title_label, THEME_FONT_TITLE, 0);
     lv_obj_set_style_text_color(title_label, lv_color_hex(THEME_COLOR_WARNING), 0);
     lv_obj_set_width(title_label, LV_PCT(90));
     lv_label_set_long_mode(title_label, LV_LABEL_LONG_WRAP);
@@ -32,18 +32,18 @@ void OtaUpdateFailedScreen::create() {
     // Main message
     message_label = lv_label_create(screen);
     lv_label_set_text(message_label, "The firmware update failed.\nThe device is still running the previous version.");
-    lv_obj_set_style_text_font(message_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(message_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(message_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_set_style_text_align(message_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(message_label, LV_PCT(90));
+    lv_obj_set_width(message_label, THEME_CONTENT_WIDTH_PX);
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
 
     // Details label (build numbers)
     details_label = lv_label_create(screen);
-    lv_obj_set_style_text_font(details_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(details_label, THEME_FONT_BODY, 0);
     lv_obj_set_style_text_color(details_label, lv_color_hex(THEME_COLOR_TEXT_SECONDARY), 0);
     lv_obj_set_style_text_align(details_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(details_label, LV_PCT(90));
+    lv_obj_set_width(details_label, THEME_CONTENT_WIDTH_PX);
     lv_label_set_long_mode(details_label, LV_LABEL_LONG_WRAP);
 
     // OK button
@@ -55,7 +55,7 @@ void OtaUpdateFailedScreen::create() {
     
     ok_button_label = lv_label_create(ok_button);
     lv_label_set_text(ok_button_label, "OK");
-    lv_obj_set_style_text_font(ok_button_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(ok_button_label, THEME_FONT_ROW, 0);
     lv_obj_set_style_text_color(ok_button_label, lv_color_hex(THEME_COLOR_TEXT_PRIMARY), 0);
     lv_obj_center(ok_button_label);
 

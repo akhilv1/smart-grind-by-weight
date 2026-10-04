@@ -1,9 +1,11 @@
 #include "screen_timeout_controller.h"
 
+#include <algorithm>
+
 #include "../../config/constants.h"
 #include "../../hardware/display_manager.h"
 #include "../../hardware/hardware_manager.h"
-#include "../assets/boot_logo.h"
+#include "../../system/custom_logo.h"
 #include "../ui_manager.h"
 
 ScreenTimeoutController::ScreenTimeoutController(UIManager* manager)
@@ -69,9 +71,17 @@ void ScreenTimeoutController::update() {
         return sensor && sensor->weight_range_exceeds(window_ms, USER_WEIGHT_ACTIVITY_THRESHOLD_G);
     };
 
+    // Sign-off: the logo shows for the last stretch before the display turns off.
+    // Capped at half the off timeout so a short timeout doesn't put the logo up
+    // right after the last touch.
+    const uint32_t signoff_ms = std::min<uint32_t>(USER_SCREEN_SIGNOFF_LOGO_MS, off_timeout_ms_ / 2);
+    const uint32_t signoff_start_ms = off_timeout_ms_ - signoff_ms;
+
     Stage desired = Stage::ACTIVE;
     if (off_enabled && ms_since_touch >= off_timeout_ms_ && !weight_active_within(off_timeout_ms_)) {
         desired = Stage::OFF;
+    } else if (off_enabled && ms_since_touch >= signoff_start_ms && !weight_active_within(signoff_start_ms)) {
+        desired = Stage::SIGNOFF;
     } else if (dim_enabled && ms_since_touch >= dim_timeout_ms_ && !weight_active_within(dim_timeout_ms_)) {
         desired = Stage::DIMMED;
     }
@@ -94,6 +104,13 @@ void ScreenTimeoutController::apply_stage(Stage stage, DisplayManager* display) 
             } else {
                 hide_logo_overlay();
             }
+            display->set_brightness(get_screensaver_brightness());
+            break;
+
+        case Stage::SIGNOFF:
+            // Logo on black at the screensaver brightness, whichever stage-1 mode
+            // is set (in Logo mode the overlay is already up and simply stays)
+            show_logo_overlay();
             display->set_brightness(get_screensaver_brightness());
             break;
 
@@ -139,7 +156,7 @@ void ScreenTimeoutController::show_logo_overlay() {
     lv_obj_clear_flag(saver_screen_, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t* logo = lv_image_create(saver_screen_);
-    lv_image_set_src(logo, &boot_logo);
+    lv_image_set_src(logo, CustomLogo::instance().image());
     lv_obj_center(logo);
     lv_obj_set_style_opa(logo, LV_OPA_TRANSP, LV_PART_MAIN);
 
