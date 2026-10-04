@@ -9,6 +9,7 @@ import asyncio
 import os
 import sys
 import subprocess
+import webbrowser
 import platform
 import venv
 from pathlib import Path
@@ -475,6 +476,44 @@ class GrinderTool:
         self.print_success("Build artifacts cleaned")
         return 0
     
+    def cmd_sim(self, args: argparse.Namespace) -> int:
+        """Build the browser LVGL simulator (sim-web/) and serve it on localhost."""
+        self.print_header("Browser Simulator")
+
+        sim_dir = self.project_dir / "sim-web"
+        build_dir = sim_dir / "build"
+        emsdk_root = Path(os.environ.get("EMSDK", str(Path.home() / "emsdk")))
+        emsdk_env = emsdk_root / "emsdk_env.sh"
+        if not emsdk_env.exists():
+            self.print_error(f"Emscripten SDK not found at {emsdk_root}")
+            self.print_info("Install it once: git clone https://github.com/emscripten-core/emsdk.git ~/emsdk && "
+                            "~/emsdk/emsdk install latest && ~/emsdk/emsdk activate latest")
+            return 1
+
+        # Configure once; later runs only rebuild what changed
+        configure = ""
+        if not (build_dir / "CMakeCache.txt").exists():
+            configure = f'emcmake cmake -S "{sim_dir}" -B "{build_dir}" && '
+        script = f'source "{emsdk_env}" >/dev/null 2>&1 && {configure}cmake --build "{build_dir}" -j'
+        if subprocess.run(["bash", "-c", script]).returncode != 0:
+            self.print_error("Simulator build failed (see sim-web/README.md, 'If the menu build breaks')")
+            return 1
+        self.print_success("Simulator built")
+
+        if args.no_serve:
+            return 0
+
+        url = f"http://localhost:{args.port}/smart-grind-web-sim.html"
+        self.print_info(f"Serving {url}  (Ctrl+C to stop)")
+        if not args.no_open:
+            webbrowser.open(url)
+        try:
+            subprocess.run([sys.executable, "-m", "http.server", str(args.port),
+                            "--bind", "127.0.0.1", "--directory", str(build_dir)])
+        except KeyboardInterrupt:
+            pass
+        return 0
+
     def cmd_release(self, args: argparse.Namespace) -> int:
         """Create a tagged release using the release helper script."""
         self.print_header("Creating Tagged Release")
@@ -563,6 +602,10 @@ def create_parser() -> argparse.ArgumentParser:
     monitor_parser = subparsers.add_parser('monitor', help='Monitor live debug output via BLE (alias for debug)')
     monitor_parser.add_argument('--device', default='GrindByWeight', help='Specify device name')
     clean_parser = subparsers.add_parser('clean', help='Clean build artifacts')
+    sim_parser = subparsers.add_parser('sim', help='Build and serve the browser UI simulator (needs ~/emsdk)')
+    sim_parser.add_argument('--port', type=int, default=8080, help='Local port to serve on (default 8080)')
+    sim_parser.add_argument('--no-serve', action='store_true', help='Build only, do not start the web server')
+    sim_parser.add_argument('--no-open', action='store_true', help='Do not open a browser tab')
     release_parser = subparsers.add_parser('release', help='Create tagged release (triggers automated GitHub release)')
     
     return parser
@@ -604,6 +647,8 @@ async def main():
             return tool.cmd_install(args)
         elif args.command == 'clean':
             return tool.cmd_clean(args)
+        elif args.command == 'sim':
+            return tool.cmd_sim(args)
         elif args.command == 'release':
             return tool.cmd_release(args)
         else:
