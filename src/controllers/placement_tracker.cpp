@@ -12,9 +12,26 @@ void PlacementTracker::reset() {
     step_g_ = 0.0f;
 }
 
-void PlacementTracker::assume_occupied(float level_g) {
+// Tare-independent grams: undo the zero offset (weight = (raw - offset) / cal)
+static float zero_offset_g(WeightSensor& sensor) {
+    const float cal = sensor.get_calibration_factor();
+    return (cal > 1e-6f || cal < -1e-6f) ? static_cast<float>(sensor.get_zero_offset()) / cal : 0.0f;
+}
+
+bool PlacementTracker::resume(WeightSensor& sensor) {
+    const float weight = sensor.get_weight_low_latency() + zero_offset_g(sensor);
+    if (baseline_valid_ && (weight - baseline_g_) < kLiftThresholdG) {
+        state_ = State::EMPTY;
+        return false;
+    }
+    if (!baseline_valid_) {
+        // No known empty level: treat whatever is there as empty and wait for a placement
+        state_ = State::EMPTY;
+        return false;
+    }
     state_ = State::HOLDING;
-    hold_level_g_ = level_g;
+    hold_level_g_ = weight;
+    return true;
 }
 
 PlacementTracker::Event PlacementTracker::update(WeightSensor& sensor) {
@@ -22,7 +39,8 @@ PlacementTracker::Event PlacementTracker::update(WeightSensor& sensor) {
         return Event::NONE;
     }
 
-    const float weight = sensor.get_weight_low_latency();
+    const float offset_g = zero_offset_g(sensor);
+    const float weight = sensor.get_weight_low_latency() + offset_g;
     const bool settled = sensor.is_settled();
 
     switch (state_) {
@@ -34,7 +52,7 @@ PlacementTracker::Event PlacementTracker::update(WeightSensor& sensor) {
                 return Event::PLACED;
             }
             if (settled) {
-                baseline_g_ = sensor.get_weight_high_latency();
+                baseline_g_ = sensor.get_weight_high_latency() + offset_g;
                 baseline_valid_ = true;
             }
             return Event::NONE;
@@ -45,7 +63,7 @@ PlacementTracker::Event PlacementTracker::update(WeightSensor& sensor) {
                 return Event::LIFTED;
             }
             if (settled) {
-                hold_level_g_ = sensor.get_weight_high_latency();
+                hold_level_g_ = sensor.get_weight_high_latency() + offset_g;
                 step_g_ = hold_level_g_ - baseline_g_;
                 state_ = State::HOLDING;
                 return Event::SETTLED;
@@ -54,13 +72,13 @@ PlacementTracker::Event PlacementTracker::update(WeightSensor& sensor) {
 
         case State::HOLDING:
             if (weight < hold_level_g_ - kLiftThresholdG) {
-                // Re-establish the empty level before looking for the next placement
+                // Keep the known empty level so the next placement is caught right
+                // away, even before the scale settles; it refreshes once it does
                 state_ = State::EMPTY;
-                baseline_valid_ = false;
                 return Event::LIFTED;
             }
             if (settled) {
-                hold_level_g_ = sensor.get_weight_high_latency();
+                hold_level_g_ = sensor.get_weight_high_latency() + offset_g;
             }
             return Event::NONE;
     }

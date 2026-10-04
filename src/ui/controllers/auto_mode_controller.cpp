@@ -90,16 +90,13 @@ void AutoModeController::on_activated() {
     }
     returned_from_grind_ = false;
 
-    // The grind tared with the portafilter on, so an empty scale now reads about
-    // minus the portafilter weight. Tell "still on" from "already removed".
+    // The tracker's empty level survives the grind's tare, so it can tell whether the
+    // portafilter is still on; lifting it then re-arms detection right away
     auto* sensor = ui_manager_->hardware_manager ? ui_manager_->hardware_manager->get_weight_sensor() : nullptr;
-    const float weight = sensor ? sensor->get_weight_low_latency() : 0.0f;
-    if (weight < -last_step_g_ * 0.5f) {
-        tracker_.reset();
-        enter_phase(Phase::WAIT_FOR_PLACEMENT);
-    } else {
-        tracker_.assume_occupied(weight);
+    if (sensor && tracker_.resume(*sensor)) {
         enter_phase(Phase::OCCUPIED);
+    } else {
+        enter_phase(Phase::WAIT_FOR_PLACEMENT);
     }
 }
 
@@ -269,46 +266,50 @@ void AutoModeController::refresh_display() {
         return;
     }
 
+    const char* name_text = "AUTO";
     char value_text[24] = "--";
-    char status_text[48] = "";
+    const char* status_text = "";
     char swap_text[16] = "";
-    AutoPageAction action = AutoPageAction::NONE;
+    AutoPageAction action = AutoPageAction::LOGO;
     const bool show_target = (phase_ == Phase::GUESSED || phase_ == Phase::OCCUPIED);
     const bool is_double = (detected_shot_ == ShotType::DOUBLE);
 
+    // Once matched, the tab reads like the matching profile tab: shot name over its dose
     if (show_target) {
-        const float target = get_profile_target(*ui_manager_->profile_controller, ui_manager_->current_mode,
-                                                static_cast<int>(detected_shot_));
-        format_ready_value(value_text, sizeof(value_text), ui_manager_->current_mode, target);
+        const float dose = get_profile_target(*ui_manager_->profile_controller, ui_manager_->current_mode,
+                                              static_cast<int>(detected_shot_));
+        name_text = is_double ? "DOUBLE" : "SINGLE";
+        format_ready_value(value_text, sizeof(value_text), ui_manager_->current_mode, dose);
     }
 
     switch (phase_) {
         case Phase::WAIT_FOR_PLACEMENT:
-            snprintf(status_text, sizeof(status_text), "Place portafilter");
+            status_text = "Place portafilter";
             break;
         case Phase::SETTLING:
-            snprintf(status_text, sizeof(status_text), "Hold still...");
+            status_text = "Hold still...";
+            action = AutoPageAction::DETECTING;
             break;
         case Phase::GUESSED:
             if (auto_start_pending_) {
-                snprintf(status_text, sizeof(status_text), "Starting %s...", is_double ? "double" : "single");
+                status_text = "Starting...";
             } else {
-                snprintf(status_text, sizeof(status_text), guess_flipped_ ? "%s selected" : "Looks like %s",
-                         is_double ? "Double" : "Single");
+                // The matched mark is the start control, so say so
+                status_text = guess_flipped_ ? "Switched. Tap to start" : "Tap to start";
             }
             snprintf(swap_text, sizeof(swap_text), "%s?", is_double ? "Single" : "Double");
             action = AutoPageAction::START;
             break;
         case Phase::ASK_LABEL:
-            snprintf(status_text, sizeof(status_text), "%s", ask_prompt_ ? ask_prompt_ : "Single or double?");
+            status_text = ask_prompt_ ? ask_prompt_ : "Single or double?";
             action = AutoPageAction::ASK_LABEL;
             break;
         case Phase::OCCUPIED:
-            snprintf(status_text, sizeof(status_text), "Remove portafilter\nto grind again");
+            status_text = "Remove portafilter to grind again";
+            action = AutoPageAction::LOCKED;
             break;
     }
 
-    const uint32_t start_color = (ui_manager_->current_mode == GrindMode::TIME) ? THEME_COLOR_ACCENT
-                                                                                : THEME_COLOR_PRIMARY;
-    ui_manager_->ready_screen.update_auto_page(value_text, status_text, action, swap_text, start_color);
+    const uint8_t shots = is_double ? 2 : 1;
+    ui_manager_->ready_screen.update_auto_page(name_text, value_text, status_text, action, shots, swap_text);
 }

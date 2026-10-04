@@ -5,8 +5,12 @@ class WeightSensor;
 
 // Detects an object (portafilter setup) being placed on and lifted off the scale,
 // and measures its weight as a step: settled weight after placement minus the
-// settled empty-scale baseline before it. Measuring the step makes the result
-// independent of wherever the last tare left the zero point.
+// settled empty-scale baseline before it.
+//
+// All levels are tracked in tare-independent grams (reading + zero offset), so the
+// empty-scale baseline survives tares (e.g. the one at grind start). That lets a
+// lift re-arm detection immediately: a portafilter put back (or swapped) before the
+// scale settles empty is still measured against the known empty level.
 //
 // Call update() every UI tick; it reports transitions as events.
 class PlacementTracker {
@@ -20,8 +24,9 @@ public:
 
     // Forget everything and wait for a settled empty-scale baseline
     void reset();
-    // Something already sits on the scale and currently reads level_g; report its removal
-    void assume_occupied(float level_g);
+    // Pick up after a pause (e.g. a grind): resume holding if the object is still on
+    // the scale, otherwise go back to waiting for a placement. Returns true if holding.
+    bool resume(WeightSensor& sensor);
 
     Event update(WeightSensor& sensor);
 
