@@ -23,6 +23,10 @@ Every non-immersive screen now carries a persistent top bar: a contextual **back
 - Screens were unified around the bar: per-screen titles and CANCEL buttons are gone, replaced by a single primary action button at the bottom of each screen.
 - LVGL's native `lv_menu` header is collapsed to zero height; its title mirrors into the nav bar and its back button drives sub-page navigation, so the menu system and the bar never fight each other.
 
+### Design system
+
+The UI follows one set of tokens in `theme.h`: near-black surfaces instead of grey slabs, a single accent blue for anything on or selected, a yellow "reading" state, and a type scale mapped from watchOS (the 41 mm watch has the same pixel density as this panel). Settings pages share one column width, 64 px rows and fixed spacing; toggles flip from anywhere on the row, two-way choices are segmented controls, and each description sits under the control it explains. The trimmed font set also made the firmware about 200 KB smaller.
+
 ### Dialog-style calibration
 
 Calibration was restyled as a step-by-step dialog with a per-step primary button (**NEXT → CALIBRATE → DONE**) and a green theme, instead of a screen with scattered controls. Each step tells you exactly what to do and gives you exactly one button to press.
@@ -44,11 +48,14 @@ iOS-style page-indicator dots along the bottom edge show which of the six tabs y
 
 ### AUTO tab: portafilter auto-detection
 
-AUTO is the first home tab. Place a portafilter and it identifies the setup by weight, shows its guess with the profile's target, and grinds that SINGLE or DOUBLE profile when you press **START**.
+AUTO is the first home tab. Place a portafilter and it identifies the setup by weight, shows its guess with the profile's target, and grinds that SINGLE or DOUBLE profile when you tap the matched mark.
+
+- **State mark** — the tab's action slot shows what AUTO is doing: blue arrows around an "A" while waiting, yellow spinning arrows while it reads a placement, and a closed ring with one or two shot dots over a play glyph once it has a match (tap it to grind). After a grind, the ring stays without the play glyph until the portafilter is lifted.
+- **Lift to re-arm** — the empty-scale level is tracked in tare-independent units, so lifting a portafilter (after a guess, or after a grind) re-arms detection immediately, and a quick swap is caught even before the scale settles empty.
 
 - **Weight step, not absolute reading** — a placement is measured as the settled weight after placing minus the settled empty-scale baseline before it (`PlacementTracker`), so wherever the last tare left the zero doesn't matter.
 - **One cluster per physical setup** — each handle + basket + funnel combination is its own learned cluster (running mean and variance, up to 16), labeled by its basket. A placement matches the cluster it is closest to in units of that cluster's own spread (4 sigma gate, clamped 1–8 g; sigma blends the measured variance with a 0.5 g prior). If a single and a double fit about equally well it asks instead of guessing.
-- **Correctable guess** — the pill next to START flips single/double; unknown or ambiguous weights show SINGLE/DOUBLE buttons. Samples from AUTO are learned only when the grind completes, so a cancelled misdetection never pollutes a cluster.
+- **Correctable guess** — the pill next to the mark flips single/double; unknown or ambiguous weights show SINGLE/DOUBLE buttons. Samples from AUTO are learned only when the grind completes, so a cancelled misdetection never pollutes a cluster.
 - **Auto Start** (Settings → Auto Mode, off by default) — grinds 1.5 s after a confident match; lifting the portafilter or flipping the guess cancels.
 - **Learn Portafilters** (Settings → Auto Mode, or long-press the AUTO page) — place each setup, tag it SINGLE or DOUBLE, lift, repeat — no grinding needed. Samples join an existing setup only when they are the same physical setup (within max(0.5 g, 3x its measured sigma)); otherwise a new setup is created. A weight-sorted list colors each setup by its separation from the nearest opposite-label setup (white clear, orange close, red indistinguishable) with a one-line verdict, and each row has a delete button.
 - Learned setups persist in NVS (`portafilter/clusters`); the home tab (AUTO vs profiles) persists across reboots (`autogrind/auto_home`).
@@ -156,6 +163,10 @@ Both timeouts use discrete steps from 15 seconds to 30 minutes, plus **Never** t
 ---
 
 ## Build System & OTA Tooling
+
+### Browser UI simulator
+
+`python3 tools/grinder.py sim` compiles the real LVGL screens to WebAssembly (Emscripten + LVGL's SDL driver) and opens them in a browser: home tabs, grind screens, every Settings page, the dialogs and the nav bar, with fake hardware (flow-curve grinds, a side panel to place and lift portafilters). UI changes can be clicked through before spending beans or an OTA. Based on the simulator from ceear's fork; see [sim-web/README.md](../sim-web/README.md).
 
 ### Native ESP-IDF
 

@@ -47,7 +47,9 @@ This is a fork of [jaapp/smart-grind-by-weight](https://github.com/jaapp/smart-g
 - **Dialog-style calibration** — guided step-by-step flow with one clear button per step
 - **BLE reliability** — OTA GATT registration order fixed, Bluetooth re-enable works without a reboot, an advertising watchdog recovers dropped connections, and the enable/disable lifecycle runs off the UI task with GATT leaks fixed (no more toggle crashes)
 - **Out-of-beans auto-pause** — a weight-mode grind pauses when the hopper runs dry (STOP to cancel, PLAY to resume after refilling) instead of burning the timeout
-- **AUTO portafilter detection** — a new first home tab recognizes each handle + basket + funnel setup by weight (learned clusters, single vs double decided by the basket), shows its guess, and grinds on START or optional Auto Start; teach setups in **Settings → Auto Mode → Learn Portafilters** (or long-press AUTO), with a separation report showing which setups can be told apart
+- **AUTO portafilter detection** — a new first home tab recognizes each handle + basket + funnel setup by weight (learned clusters, single vs double decided by the basket), shows its guess as a state mark you tap to grind (or optional Auto Start), and re-arms as soon as you lift the portafilter; teach setups in **Settings → Auto Mode → Learn Portafilters** (or long-press AUTO), with a separation report showing which setups can be told apart
+- **Refined design system** — near-black surfaces, one accent for on/selected, a watchOS-based type scale, and standardized Settings rows (whole-row toggles, segmented choices)
+- **Browser UI simulator** — `python3 tools/grinder.py sim` runs the real screens in a browser so UI changes can be tried before an OTA
 - **Grind chart with a real time axis** — t=0 pinned left, the span widens so the whole session is always in view, whole-second gridlines with axis labels, timestamps taken at sample time, paused phases cut from the timeline, and a target-weight marker
 - **Safer OTA** — updates are refused unless the grind controller is idle, so an update can't freeze the control loop mid-grind
 - **Hardware resilience & options** — runtime HX711 fault detection/recovery, active-low motor relay support, 180° screen rotation
@@ -106,7 +108,7 @@ flowchart LR
 
 ### For Developers - Building from Source
 
-The firmware builds with **native ESP-IDF** (`python3 tools/grinder.py build`, or `idf.py` directly) — there is no PlatformIO. If you want to modify the code or contribute to development, see **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** for build instructions.
+The firmware builds with **native ESP-IDF** (`python3 tools/grinder.py build`, or `idf.py` directly) — there is no PlatformIO. To try UI changes without a device, run `python3 tools/grinder.py sim` (browser simulator, see [sim-web/README.md](sim-web/README.md)). If you want to modify the code or contribute to development, see **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** for build instructions.
 
 **Design Files:** The complete Fusion 360 design is available at `3d_files/smart-grind-by-weight. Eureka Mignon.f3z` for modification and adaptation to other grinder models.
 

@@ -22,6 +22,7 @@ python3 tools/grinder.py analyze
 - `python3 tools/grinder.py scan` - Scan for BLE devices
 - `python3 tools/grinder.py info` - Get device system information
 - `python3 tools/grinder.py clean` - Clean build artifacts
+- `python3 tools/grinder.py sim` - Build and serve the browser UI simulator (`sim-web/`, needs Emscripten in `~/emsdk`); check UI changes here before an OTA
 
 ## Architecture
 
@@ -74,8 +75,9 @@ python3 tools/grinder.py analyze
 
 **AUTO Mode (portafilter detection):**
 - `PortafilterDetector` (`src/controllers/`): online clustering — one cluster per physical handle+basket+funnel setup (mean/variance via Welford, sample count capped at `USER_PF_MAX_SAMPLES`, up to `USER_PF_MAX_CLUSTERS`), labeled SINGLE/DOUBLE by basket. Matching gate = `USER_PF_MATCH_SIGMAS` x sigma (prior-blended, clamped `USER_PF_MIN/MAX_GATE_G`); near-tie between labels = AMBIGUOUS. Joining/merging uses the stricter `is_same_setup()` (max(`USER_PF_SAME_SETUP_MIN_G`, 3x measured sigma)). NVS blob `portafilter/clusters` (shorter blobs from a smaller cap load fine)
-- `PlacementTracker` (`src/controllers/`): place/settle/lift detection measuring the tare-independent weight step; shared by AUTO and the learn tool
-- `AutoModeController` (UI): AUTO tab flow — guess + START (flip pill to correct), SINGLE/DOUBLE prompt for unknown/ambiguous; learns only when the grind completes. Optional Auto Start (`autogrind/pf_auto_start`) grinds `USER_PF_AUTO_START_DELAY_MS` after a confident match. Long-press the AUTO page opens Learn Portafilters
+- `PlacementTracker` (`src/controllers/`): place/settle/lift detection measuring the weight step; levels are kept in tare-independent grams (reading + zero offset) so the empty baseline survives tares and lifts, and a lift re-arms detection immediately; shared by AUTO and the learn tool
+- **AUTO mark** (`ReadyScreen::set_auto_logo`, canvas-drawn): blue arrows + "A" while waiting, yellow spinning arrows while reading, closed ring with shot dots over a play glyph when matched (tappable = START), same ring without play while the portafilter is still on after a grind
+- `AutoModeController` (UI): AUTO tab flow — guess shown as the matched mark (tap the ring to start; flip pill to correct), SINGLE/DOUBLE prompt for unknown/ambiguous; learns only when the grind completes. Optional Auto Start (`autogrind/pf_auto_start`) grinds `USER_PF_AUTO_START_DELAY_MS` after a confident match. Long-press the AUTO page opens Learn Portafilters
 - `PortafilterLearnController` + `PortafilterLearnScreen` (`UIState::PORTAFILTER_LEARN`): teach setups without grinding; weight-sorted list colored by `separation()` with per-row delete
 - **Settings → Auto Mode** page: Auto Start toggle, Learn Portafilters button, learned-setup list (tap to forget). Start on Cup only applies to the manual profile tabs
 - **LVGL printf has no float support** (`LV_SPRINTF_USE_FLOAT` off): format floats with `snprintf`, never `lv_label_set_text_fmt("%f")`
@@ -97,19 +99,11 @@ python3 tools/grinder.py analyze
 - **Preferences**: `swipe.enabled` (boolean), `grind_mode` (0=Weight, 1=Time), `chute_mode` (0=Prime, 1=Purge), `chute_amount_g` (float)
 - **Behavior**: Swipe gestures only work when enabled; direct mode selection always works
 
-**Color Scheme (RGB565):**
-- `COLOR_PRIMARY`: 0xFF0000 (Red) - Primary theme color
-- `COLOR_ACCENT`: 0x00AAFF (Blue) - Highlights and accents
-- `COLOR_SUCCESS`: 0x00AA00 (Green) - Success states
-- `COLOR_WARNING`: 0xCC8800 (Orange) - Warning states
-- `COLOR_BACKGROUND`: 0x000000 (Black) - Background
-- `COLOR_TEXT_PRIMARY`: 0xFFFFFF (White) - Primary text
-
-**Font Usage Hierarchy:**
-- `lv_font_montserrat_24`: Standard text and button labels
-- `lv_font_montserrat_32`: Button symbols (OK, CLOSE, PLUS, MINUS)
-- `lv_font_montserrat_36`: Screen titles
-- `lv_font_montserrat_56`: Large weight displays
+**Design system (`src/config/theme.h`):** use the role tokens, never literal colors, fonts or sizes. The browsable reference is the Grinder UI Handbook artifact.
+- Colors: background `0x000000`, surface `0x1C1C1E` (cards, tracks), primary `0xFF453A` (grind action, weight mode), accent/selected `0x0A84FF` (on toggles, selected segments, sliders, AUTO mark, time mode), detecting `0xFFD60A`, success `0x30D158`, warning `0xFF9F0A`
+- Type scale (mapped from watchOS: pt x 2 x 280/352): `THEME_FONT_DISPLAY_VALUE` 56, `THEME_FONT_TITLE` / `_DISPLAY_NAME` / `_SYMBOL` 28, `THEME_FONT_ROW` 24, `THEME_FONT_BODY` 22, `THEME_FONT_SECTION` / `_CAPTION` / `_STATUS` / `_NAV` 20
+- Settings layout: one `THEME_CONTENT_WIDTH_PX` (260) column, `THEME_ROW_HEIGHT_PX` (64) rows, shared gap tokens; build pages with `setup_settings_page()`, `create_toggle_row()` (whole row toggles), `create_radio_button_group()` (segmented control), `create_separator()`, `create_description_label()` (placed under its control)
+- Built-in fonts are ASCII + LVGL symbols only: write "+/-", not "±"
 
 ## Development Notes
 
